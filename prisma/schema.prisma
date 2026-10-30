@@ -1,0 +1,204 @@
+// Database schema. Phase 1 covers identity, stores, memberships and audit logs.
+// Catalog, orders and payments tables are added in later phases.
+//
+// Conventions:
+// - Every table that belongs to a store has a `storeId` column. Service code
+//   must always filter by it (see src/server/tenancy).
+// - Table names are snake_case plurals via @@map; Prisma model names stay PascalCase.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Identity (shape required by Better Auth)
+
+enum PlatformRole {
+  USER
+  SUPER_ADMIN
+}
+
+model User {
+  id            String       @id
+  name          String
+  email         String       @unique
+  emailVerified Boolean      @default(false)
+  image         String?
+  // Only changeable from the database or seed script, never through sign-up.
+  platformRole  PlatformRole @default(USER)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  sessions         Session[]
+  accounts         Account[]
+  storeMemberships StoreMembership[]
+  invitesSent      StoreInvite[]     @relation("InvitedBy")
+  auditLogs        AuditLog[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+// One row per sign-in method. For email + password, `password` holds the hash.
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("accounts")
+}
+
+// Short-lived tokens for email verification and password reset.
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verifications")
+}
+
+// Stores (tenants)
+
+enum StoreStatus {
+  DRAFT // created, not visible to shoppers yet
+  ACTIVE // published
+  SUSPENDED // switched off by a platform admin
+}
+
+model Store {
+  id             String      @id @default(cuid())
+  name           String
+  // Used in URLs (/s/northbrew) and subdomains, so it is unique platform-wide.
+  slug           String      @unique
+  status         StoreStatus @default(DRAFT)
+  // ISO 4217 code such as "CAD". All prices in this store use this currency.
+  currency       String      @db.Char(3)
+  // ISO 3166-1 alpha-2 code such as "CA".
+  country        String      @db.Char(2)
+  contactEmail   String
+  primaryColor   String      @default("#1f2937")
+  accentColor    String      @default("#f59e0b")
+  logoStorageKey String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  // Soft delete: old orders must keep pointing at a real store row.
+  deletedAt      DateTime?
+
+  settings    StoreSettings?
+  memberships StoreMembership[]
+  invites     StoreInvite[]
+  auditLogs   AuditLog[]
+
+  @@index([status])
+  @@map("stores")
+}
+
+// Settings that change rarely and are only read by the dashboard and checkout.
+// Tax and shipping are demo rules, not authoritative tax calculations.
+model StoreSettings {
+  storeId               String   @id
+  store                 Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  // Basis points: 1300 = 13.00%. Integers avoid floating-point rounding.
+  demoTaxRateBps        Int      @default(0)
+  flatShippingCents     Int      @default(0)
+  freeShippingOverCents Int?
+  lowStockThreshold     Int      @default(5)
+  updatedAt             DateTime @updatedAt
+
+  @@map("store_settings")
+}
+
+enum StoreRole {
+  OWNER
+  MANAGER
+  INVENTORY_EDITOR
+  FULFILLMENT_AGENT
+}
+
+// Links a user to a store with a role. A user can belong to many stores.
+model StoreMembership {
+  id        String    @id @default(cuid())
+  storeId   String
+  store     Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      StoreRole
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([storeId, userId])
+  @@index([userId])
+  @@map("store_memberships")
+}
+
+model StoreInvite {
+  id          String    @id @default(cuid())
+  storeId     String
+  store       Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  email       String
+  role        StoreRole
+  // SHA-256 of the token in the invite link. The raw token is only ever in the email.
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  invitedById String
+  invitedBy   User      @relation("InvitedBy", fields: [invitedById], references: [id])
+  createdAt   DateTime  @default(now())
+
+  @@index([storeId, email])
+  @@map("store_invites")
+}
+
+// Audit trail
+
+// Append-only record of sensitive actions. Store IDs and entity IDs only:
+// no emails, addresses or other personal data in `metadata`.
+model AuditLog {
+  id          String   @id @default(cuid())
+  storeId     String?
+  store       Store?   @relation(fields: [storeId], references: [id])
+  actorUserId String?
+  actor       User?    @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  action      String
+  entityType  String
+  entityId    String
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([storeId, createdAt])
+  @@map("audit_logs")
+}

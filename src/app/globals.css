@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+/* The platform UI (sign-in, dashboard) uses a fixed light theme for now.
+   Each storefront will get its own colours from the store's branding in Phase 2. */
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--color-stone-50);
+  color: var(--color-stone-900);
+}

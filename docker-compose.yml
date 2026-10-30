@@ -1,0 +1,30 @@
+# Local development services. The app itself runs with `npm run dev`.
+# Ports are deliberately non-default so this project can run alongside others.
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: shop
+      POSTGRES_PASSWORD: shop_dev_password
+      POSTGRES_DB: shop_dev
+    ports:
+      - "127.0.0.1:5440:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      # Creates the separate test database on first start.
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shop -d shop_dev"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Catches every email the app sends locally. Open http://localhost:8030
+  mail:
+    image: axllent/mailpit:v1.27
+    ports:
+      - "127.0.0.1:1030:1025"
+      - "127.0.0.1:8030:8025"
+
+volumes:
+  db-data:
