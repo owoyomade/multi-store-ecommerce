@@ -1,14 +1,16 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/field";
 import { authClient } from "@/lib/auth/auth-client";
+import { safeNextPath } from "@/lib/safe-redirect";
 
 export function SignInForm() {
   const router = useRouter();
+  const nextPath = safeNextPath(useSearchParams().get("next"));
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,7 +31,7 @@ export function SignInForm() {
       return;
     }
     // refresh() makes server components re-read the new session cookie.
-    router.push("/dashboard");
+    router.push(nextPath);
     router.refresh();
   }
 

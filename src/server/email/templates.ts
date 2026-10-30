@@ -55,3 +55,65 @@ function escapeHtml(value: string): string {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 }
+
+type OrderEmailDetails = {
+  to: string;
+  storeName: string;
+  orderNumber: number;
+  lines: { title: string; quantity: number; lineTotal: string }[];
+  subtotal: string;
+  shipping: string;
+  tax: string;
+  total: string;
+  orderUrl: string;
+};
+
+export function orderConfirmationMessage(
+  order: OrderEmailDetails,
+): EmailMessage {
+  const subject = `${order.storeName}: order #${order.orderNumber} confirmed`;
+  const textLines = order.lines.map(
+    (line) => `${line.quantity} × ${line.title} — ${line.lineTotal}`,
+  );
+  const htmlRows = order.lines
+    .map(
+      (line) =>
+        `<tr><td style="padding:4px 12px 4px 0">${line.quantity} × ${escapeHtml(line.title)}</td><td style="text-align:right">${escapeHtml(line.lineTotal)}</td></tr>`,
+    )
+    .join("");
+  const totals = [
+    ["Subtotal", order.subtotal],
+    ["Shipping", order.shipping],
+    ["Tax (demo rate)", order.tax],
+    ["Total", order.total],
+  ];
+
+  return {
+    to: order.to,
+    subject,
+    text: [
+      `Thanks for your order from ${order.storeName}!`,
+      "",
+      ...textLines,
+      "",
+      ...totals.map(([label, value]) => `${label}: ${value}`),
+      "",
+      `View your order: ${order.orderUrl}`,
+      "",
+      "This is a demo store: no real payment was taken.",
+    ].join("\n"),
+    html: `
+      <p>Thanks for your order from <strong>${escapeHtml(order.storeName)}</strong>!</p>
+      <table style="border-collapse:collapse;font-size:14px">${htmlRows}
+        ${totals
+          .map(
+            ([label, value]) =>
+              `<tr><td style="padding:4px 12px 4px 0;color:#6b7280">${label}</td><td style="text-align:right">${escapeHtml(value ?? "")}</td></tr>`,
+          )
+          .join("")}
+      </table>
+      <p><a href="${escapeHtml(order.orderUrl)}">View your order</a></p>
+      <p style="color:#6b7280;font-size:13px">This is a demo store: no real payment was taken.</p>
+    `,
+  };
+}

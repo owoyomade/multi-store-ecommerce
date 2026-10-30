@@ -2,7 +2,7 @@
 
 A multi-tenant e-commerce platform where merchants create and run several independent online stores from one dashboard. Each store's data is isolated from every other store.
 
-> **Status: Phase 2 (catalog and storefront) complete.** Accounts, stores, roles, tenant isolation, products, collections, branded storefronts and carts work. Checkout and payments arrive in Phase 3 — see [docs/phase-0-plan.md](docs/phase-0-plan.md).
+> **Status: Phase 3 (checkout and orders) complete.** Accounts, stores, roles, tenant isolation, catalog, branded storefronts, carts, Stripe test-mode checkout, orders and customer accounts work. Merchant order operations (fulfil, cancel, refund), discounts and staff invites arrive in Phase 4 — see [docs/phase-0-plan.md](docs/phase-0-plan.md).
 
 ## What works today
 
@@ -29,6 +29,16 @@ A multi-tenant e-commerce platform where merchants create and run several indepe
 - Cart stored on the server, identified by a random cookie token; prices always come from the live catalog
 - Works on phones (no-JavaScript-required mobile menu) and on store subdomains, e.g. `lumen.localhost:3210`
 - Draft stores are only visible to their own staff, as a preview
+
+**Checkout and orders**
+
+- Checkout as a guest or signed in; totals (subtotal, demo shipping, demo tax) are always calculated on the server from current catalog prices
+- Stock is reserved during checkout with an atomic database update, so two shoppers can't buy the last unit; abandoned or cancelled checkouts release it
+- Payment on Stripe's hosted page in **test mode only** (live keys are refused), behind a provider interface so others can be added
+- Signed Stripe webhooks mark orders paid; each event is processed once, and the charged amount is checked against the order
+- Order numbers per store (#1001, #1002…), item price/name snapshots, and a status history recording who changed what
+- Order confirmation email; confirmation page; signed-in shoppers get order history and saved addresses
+- Read-only orders list and order detail in the merchant dashboard
 
 **Security**
 
@@ -81,6 +91,30 @@ The demo storefronts are at http://localhost:3210/s/northbrew and http://localho
 
 > This project uses non-default ports (app 3210, Postgres 5440, Mailpit 1030/8030) so it can run next to other local projects.
 
+### Payments (optional, Stripe test mode)
+
+Without Stripe keys everything works except the final "Continue to payment" step, which says payments aren't set up. To try a full purchase:
+
+1. Create a free account at https://dashboard.stripe.com and stay in **Test mode**.
+2. Under Developers → API keys, copy the **Secret key** (`sk_test_...`) into `STRIPE_SECRET_KEY` in your `.env`. Live keys are rejected.
+3. Install the Stripe CLI and log in. It forwards Stripe's webhooks to your computer:
+
+   ```bash
+   brew install stripe/stripe-cli/stripe
+   ```
+
+   ```bash
+   stripe login
+   ```
+
+4. Start forwarding and copy the `whsec_...` value it prints into `STRIPE_WEBHOOK_SECRET`:
+
+   ```bash
+   stripe listen --events checkout.session.completed,checkout.session.expired --forward-to localhost:3210/api/webhooks/stripe
+   ```
+
+5. Restart `npm run dev`, then buy something with card `4242 4242 4242 4242`, any future expiry date and any CVC.
+
 ### Demo accounts
 
 `npm run db:seed` creates these accounts, plus a catalog for each store (about ten products, collections, a sold-out item and a draft). Product images are generated placeholder art. All accounts use the password set in `SEED_DEMO_PASSWORD` in your `.env`.
@@ -116,8 +150,10 @@ src/
     media/                 serves uploaded product images
     api/auth/[...all]/     Better Auth endpoints
     api/health/            health check
+    api/webhooks/stripe/   signed Stripe webhook endpoint
   server/                  server-only code — never sent to the browser
     auth/                  Better Auth config and session helpers
+    payments/              PaymentProvider interface and the Stripe implementation
     storage/               file storage driver and safe image processing
     tenancy/               StoreContext: who is acting in which store
     permissions/           role → permission map
@@ -134,16 +170,24 @@ docs/                      design plan and manual test checklist
 
 Every store-owned row has a `storeId`. Pages and server actions never query store data directly; they call a service function that takes a `StoreContext` (store ID, user ID, role). That context is built on the server from the signed-in user's membership row — a store ID sent by the browser is never trusted. Non-members get a 404, so they can't even confirm a store exists. Integration tests in `tests/integration/store-tenancy.test.ts` check this.
 
-## Known limitations (after Phase 2)
+## Known limitations (after Phase 3)
 
-- No checkout, orders or payments yet (Phase 3); the cart page says so
-- Product options are fixed once a product is created; images can't be reordered (the first upload is the main image)
-- Images of draft products can be fetched by anyone who knows the exact URL (it contains a random UUID, so it can't be guessed)
-- Uploads are stored on the local disk; an S3-compatible driver arrives with deployment (Phase 6)
-- Abandoned carts aren't cleaned up yet
-- No staff invite screen or platform-admin pages yet (Phase 4)
+- Merchants can view orders but can't yet fulfil, cancel or refund them from the dashboard (Phase 4)
+- No discount codes yet (Phase 4)
+- All stores share one Stripe test account. Before real merchants, each store needs its own connected account (Stripe Connect), plus verification and legal terms
+- Tax and shipping are simple per-store demo rates, not real tax calculation
+- Shopper accounts work on `/s/<store>/...` paths; on store subdomains shoppers check out as guests (the sign-in cookie belongs to the main domain)
+- Product options are fixed once a product is created; images can't be reordered
+- Uploads are stored on the local disk (S3-compatible storage arrives in Phase 6)
+- Abandoned carts aren't cleaned up yet; expired stock reservations are released when the next checkout starts
 - Rate-limit counters are kept in memory, so they reset when the server restarts
 - Not deployed anywhere yet (Phase 6)
+
+## Troubleshooting
+
+- **"Cannot read properties of undefined (reading 'findMany')" after a migration:** the dev server is still using the database client from before the schema change. Stop and restart `npm run dev`.
+- **Checkout says payments aren't set up:** add both Stripe values to `.env` and restart the dev server.
+- **Orders stay on "Confirming your payment…":** the webhook isn't reaching the app. Check that `stripe listen` is running and that `STRIPE_WEBHOOK_SECRET` matches the value it printed.
 
 ## Testing
 

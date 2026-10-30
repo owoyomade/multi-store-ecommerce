@@ -1,14 +1,16 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/field";
 import { authClient } from "@/lib/auth/auth-client";
+import { safeNextPath } from "@/lib/safe-redirect";
 
 export function SignUpForm() {
   const router = useRouter();
+  const nextPath = safeNextPath(useSearchParams().get("next"));
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -23,7 +25,7 @@ export function SignUpForm() {
       email: String(form.get("email")),
       password: String(form.get("password")),
       // Where the verification link sends the user once their email is confirmed.
-      callbackURL: "/dashboard",
+      callbackURL: nextPath,
     });
 
     setPending(false);

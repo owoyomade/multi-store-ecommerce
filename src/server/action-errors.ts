@@ -20,6 +20,16 @@ function submittedText(
   return values;
 }
 
+/** Groups Zod messages by field path, e.g. "price" or "address.city" for nested objects. */
+function fieldErrorsByPath(error: z.ZodError): Record<string, string[]> {
+  const errors: Record<string, string[]> = {};
+  for (const issue of error.issues) {
+    const key = issue.path.join(".");
+    (errors[key] ??= []).push(issue.message);
+  }
+  return errors;
+}
+
 /**
  * Converts the errors services throw on purpose into a FormState the form can
  * display, including what the user typed so the form can be refilled.
@@ -35,10 +45,7 @@ export function toErrorFormState(
     return {
       status: "error",
       message: "Please fix the highlighted fields.",
-      fieldErrors: z.flattenError(error).fieldErrors as Record<
-        string,
-        string[]
-      >,
+      fieldErrors: fieldErrorsByPath(error),
       values,
     };
   }

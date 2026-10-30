@@ -54,6 +54,22 @@ Run through this after setup (see README). Each item says what to do and what yo
 - [ ] **Publish the store.** Create a new store: its storefront is a preview only you can see (amber banner). Click "Publish store" on the overview; signed out, the storefront is now visible.
 - [ ] **Roles.** Sign in as `sam@example.test`: at Lumen (fulfillment agent) there are no Products or Collections links, and `/dashboard/lumen/products` says your role doesn't include managing products.
 
+## Phase 3 — Checkout and orders
+
+### Without Stripe keys
+
+- [ ] **Checkout page.** Add items, click "Check out". The page shows your items, subtotal, shipping (free above the store's threshold), demo tax and total, and says payments aren't set up; "Continue to payment" is disabled.
+- [ ] **Account.** Click "Account" in a store header. Signed out, you get sign-in and create-account buttons that bring you back afterwards. Signed in, you see orders and saved addresses for this store only.
+
+### With Stripe test keys (see README → Payments)
+
+- [ ] **Successful purchase.** Check out as a guest with card 4242 4242 4242 4242. You return to "Thank you for your order", the cart is empty, and an order confirmation email is in Mailpit.
+- [ ] **Stock.** The product's stock in the dashboard dropped by the quantity bought.
+- [ ] **Merchant view.** Dashboard → Orders shows the order as Paid; its page shows items, address, the Stripe payment and the history (Awaiting payment → Paid).
+- [ ] **Cancel.** Start a checkout, then click the back arrow on Stripe's page. You return to your cart with "Checkout cancelled", and the order shows as Cancelled.
+- [ ] **Declined card.** Use 4000 0000 0000 0002: Stripe shows the decline and no order is marked paid.
+- [ ] **Signed-in shopper.** Sign in, check out with "Save this address" ticked. The order appears under Account, and the address is offered at your next checkout.
+
 ### Automated checks
 
 ```bash

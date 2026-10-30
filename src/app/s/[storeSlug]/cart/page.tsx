@@ -16,8 +16,11 @@ export const metadata: Metadata = {
 
 export default async function CartPage({
   params,
+  searchParams,
 }: PageProps<"/s/[storeSlug]/cart">) {
   const { storeSlug } = await params;
+  // Set by the cancel route when a shopper backs out of the payment page.
+  const checkoutCancelled = (await searchParams).checkout === "cancelled";
   const store = await loadStorefront(storeSlug);
   const [cart, base] = await Promise.all([
     getCart(store.id, await readCartToken(store.id)),
@@ -50,6 +53,15 @@ export default async function CartPage({
         >
           Your cart
         </h1>
+        {checkoutCancelled && (
+          <p
+            role="status"
+            className="mb-4 rounded-[var(--sf-radius)] bg-current/5 p-3 text-sm"
+          >
+            Checkout cancelled — you weren&apos;t charged. Your items are still
+            in your cart.
+          </p>
+        )}
         <ul className="divide-y divide-current/10 border-y border-current/10">
           {cart.lines.map((line) => (
             <li key={line.id} className="flex gap-4 py-5">
@@ -131,10 +143,18 @@ export default async function CartPage({
         <p className="mt-2 text-sm opacity-70">
           Shipping and taxes are calculated at checkout.
         </p>
-        <p className="mt-6 rounded-[var(--sf-radius)] bg-current/5 p-3 text-sm">
-          Checkout opens soon. In this demo, payments arrive in the next
-          release.
-        </p>
+        {cart.lines.some((line) => line.problem) ? (
+          <p className="mt-6 text-sm text-red-700" role="alert">
+            Remove or update the items marked above to continue.
+          </p>
+        ) : (
+          <Link
+            href={`${base}/checkout`}
+            className="mt-6 block rounded-[var(--sf-radius)] bg-[var(--sf-accent)] px-6 py-3 text-center font-medium text-[var(--sf-on-accent)]"
+          >
+            Check out
+          </Link>
+        )}
       </aside>
     </div>
   );

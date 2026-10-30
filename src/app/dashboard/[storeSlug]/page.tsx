@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireStoreContext } from "@/server/auth/session";
+import { getPaymentProvider } from "@/server/payments";
 import { roleHasPermission } from "@/server/permissions/roles";
 import { getStoreDetails } from "@/server/services/stores";
 import { StoreStatusBadge } from "../store-status-badge";
@@ -18,11 +19,11 @@ export default async function StoreOverviewPage({
     roleHasPermission(context.role, "store:settings") &&
     store.status !== "SUSPENDED";
 
-  // Payment setup arrives with checkout in Phase 3.
   const launchChecklist = [
     { label: "Create your store", done: true },
     { label: "Add your first product", done: store._count.products > 0 },
-    { label: "Set up payments", done: false },
+    // Payments are configured platform-wide (Stripe test mode) for this demo.
+    { label: "Set up payments", done: getPaymentProvider() !== null },
     { label: "Publish your store", done: store.status === "ACTIVE" },
   ];
 

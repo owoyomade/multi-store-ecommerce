@@ -97,6 +97,12 @@ export default async function StorefrontLayout({
           </nav>
 
           <div className="ml-auto flex items-center gap-3 md:ml-0">
+            <Link
+              href={`/s/${store.slug}/account`}
+              className="hidden text-sm opacity-90 hover:underline sm:inline"
+            >
+              Account
+            </Link>
             <form
               action={`${base}/products`}
               role="search"
@@ -139,7 +145,10 @@ export default async function StorefrontLayout({
                 />
               </form>
               <nav aria-label="Store (mobile)" className="flex flex-col gap-1">
-                {navLinks.map((link) => (
+                {[
+                  ...navLinks,
+                  { href: `/s/${store.slug}/account`, label: "Account" },
+                ].map((link) => (
                   <Link
                     key={link.href}
                     href={link.href}

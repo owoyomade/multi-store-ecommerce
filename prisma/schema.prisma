@@ -38,6 +38,7 @@ model User {
   storeMemberships StoreMembership[]
   invitesSent      StoreInvite[]     @relation("InvitedBy")
   auditLogs        AuditLog[]
+  customers        Customer[]
 
   @@map("users")
 }
@@ -129,6 +130,8 @@ model Store {
   collections        Collection[]
   inventoryLocations InventoryLocation[]
   carts              Cart[]
+  customers          Customer[]
+  orders             Order[]
 
   @@index([status])
   @@map("stores")
@@ -151,6 +154,9 @@ model StoreSettings {
   flatShippingCents     Int      @default(0)
   freeShippingOverCents Int?
   lowStockThreshold     Int      @default(5)
+  // Next human-friendly order number (#1001, #1002, ...). Incremented
+  // atomically when an order is created, so numbers are unique per store.
+  nextOrderNumber       Int      @default(1001)
   updatedAt             DateTime @updatedAt
 
   @@map("store_settings")
@@ -290,6 +296,7 @@ model ProductVariant {
   inventoryLevels    InventoryLevel[]
   inventoryMovements InventoryMovement[]
   cartItems          CartItem[]
+  orderItems         OrderItem[]
 
   @@unique([storeId, sku])
   @@index([productId])
@@ -396,6 +403,8 @@ model InventoryMovement {
   delta       Int
   reason      InventoryMovementReason
   actorUserId String?
+  // Set for SALE movements so stock changes can be traced to an order.
+  orderId     String?
   note        String?
   createdAt   DateTime                @default(now())
 
@@ -435,4 +444,193 @@ model CartItem {
 
   @@unique([cartId, variantId])
   @@map("cart_items")
+}
+
+// Customers and orders
+
+// A shopper as seen by one store. Created at checkout (guest or signed in).
+// The same person buying from two stores is two Customer rows, so stores
+// never see each other's customer lists.
+model Customer {
+  id        String    @id @default(cuid())
+  storeId   String
+  store     Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  email     String
+  name      String
+  // Linked when the shopper was signed in, so they can see their order history.
+  userId    String?
+  user      User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  addresses Address[]
+  orders    Order[]
+
+  @@unique([storeId, email])
+  @@index([userId])
+  @@map("customers")
+}
+
+model Address {
+  id         String   @id @default(cuid())
+  storeId    String
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  name       String
+  line1      String
+  line2      String   @default("")
+  city       String
+  region     String   @default("")
+  postalCode String
+  country    String   @db.Char(2)
+  phone      String   @default("")
+  createdAt  DateTime @default(now())
+
+  @@index([customerId])
+  @@map("addresses")
+}
+
+enum OrderStatus {
+  PENDING // created at checkout, waiting for payment; stock is reserved
+  PAID
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+model Order {
+  id                   String      @id @default(cuid())
+  storeId              String
+  store                Store       @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  orderNumber          Int
+  customerId           String
+  customer             Customer    @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  // Copied at checkout: later changes to the customer don't rewrite old orders.
+  email                String
+  status               OrderStatus @default(PENDING)
+  currency             String      @db.Char(3)
+  subtotalCents        Int
+  shippingCents        Int
+  taxCents             Int
+  totalCents           Int
+  // Snapshot of the address at checkout: { name, line1, line2, city, region, postalCode, country, phone }.
+  shippingAddress      Json
+  // Stock stays reserved for this order until this time, then is released.
+  reservationExpiresAt DateTime
+  // The cart that became this order; emptied once payment succeeds.
+  cartId               String?
+  // The browser's checkout attempt ID. Submitting the same checkout twice
+  // (double click, retry) finds this order instead of creating a second one.
+  idempotencyKey       String      @unique
+  paidAt               DateTime?
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+
+  items         OrderItem[]
+  statusHistory OrderStatusHistory[]
+  payments      Payment[]
+
+  @@unique([storeId, orderNumber])
+  @@index([storeId, status, createdAt])
+  @@index([customerId])
+  @@map("orders")
+}
+
+// One product line on an order. Titles, SKU and price are copied at
+// purchase time so the order stays accurate if the product changes later.
+model OrderItem {
+  id             String          @id @default(cuid())
+  orderId        String
+  order          Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variantId      String?
+  variant        ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  productTitle   String
+  variantTitle   String
+  sku            String
+  unitPriceCents Int
+  quantity       Int
+  lineTotalCents Int
+  // Whether stock was reserved for this line (untracked variants aren't).
+  stockReserved  Boolean         @default(false)
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+// Every status change, who made it (null = the system, e.g. a payment webhook) and why.
+model OrderStatusHistory {
+  id          String       @id @default(cuid())
+  orderId     String
+  order       Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  fromStatus  OrderStatus?
+  toStatus    OrderStatus
+  actorUserId String?
+  note        String?
+  createdAt   DateTime     @default(now())
+
+  @@index([orderId, createdAt])
+  @@map("order_status_history")
+}
+
+// Payments
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  EXPIRED
+}
+
+model Payment {
+  id                String        @id @default(cuid())
+  storeId           String
+  orderId           String
+  order             Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  provider          String
+  // e.g. the Stripe Checkout Session ID.
+  providerSessionId String        @unique
+  // e.g. the Stripe PaymentIntent ID, known once the shopper pays.
+  providerPaymentId String?
+  // Where the shopper completes payment. Re-used if the same checkout is submitted twice.
+  checkoutUrl       String?
+  amountCents       Int
+  currency          String        @db.Char(3)
+  status            PaymentStatus @default(PENDING)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  events PaymentEvent[]
+
+  @@index([orderId])
+  @@map("payments")
+}
+
+// Human-readable history of what happened to a payment.
+model PaymentEvent {
+  id        String   @id @default(cuid())
+  paymentId String
+  payment   Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  type      String
+  details   Json?
+  createdAt DateTime @default(now())
+
+  @@index([paymentId])
+  @@map("payment_events")
+}
+
+// Every webhook we've processed. The unique constraint is what makes
+// processing idempotent: providers retry deliveries, and a repeat of an event
+// we've already handled is recognised and skipped.
+model WebhookEvent {
+  id              String   @id @default(cuid())
+  provider        String
+  providerEventId String
+  type            String
+  receivedAt      DateTime @default(now())
+
+  @@unique([provider, providerEventId])
+  @@map("webhook_events")
 }
