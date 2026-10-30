@@ -3,6 +3,7 @@ import {
   type InputHTMLAttributes,
   type ReactNode,
   type SelectHTMLAttributes,
+  type TextareaHTMLAttributes,
 } from "react";
 
 const controlClasses =
@@ -107,5 +108,69 @@ export function SelectField({
         ))}
       </select>
     </FieldShell>
+  );
+}
+
+type TextAreaFieldProps = TextareaHTMLAttributes<HTMLTextAreaElement> & {
+  label: string;
+  hint?: string;
+  errors?: string[];
+};
+
+export function TextAreaField({
+  label,
+  hint,
+  errors,
+  ...textareaProps
+}: TextAreaFieldProps) {
+  const id = useId();
+  return (
+    <FieldShell id={id} label={label} hint={hint} errors={errors}>
+      <textarea
+        id={id}
+        rows={5}
+        className={controlClasses}
+        aria-invalid={errors?.length ? true : undefined}
+        aria-describedby={describedBy(id, hint, errors)}
+        {...textareaProps}
+      />
+    </FieldShell>
+  );
+}
+
+type CheckboxFieldProps = Omit<
+  InputHTMLAttributes<HTMLInputElement>,
+  "type"
+> & {
+  label: string;
+  hint?: string;
+};
+
+export function CheckboxField({
+  label,
+  hint,
+  ...inputProps
+}: CheckboxFieldProps) {
+  const id = useId();
+  return (
+    <div className="flex items-start gap-2">
+      <input
+        id={id}
+        type="checkbox"
+        className="mt-0.5 size-4 rounded border-stone-300 accent-stone-900"
+        aria-describedby={hint ? `${id}-hint` : undefined}
+        {...inputProps}
+      />
+      <div>
+        <label htmlFor={id} className="text-sm font-medium text-stone-800">
+          {label}
+        </label>
+        {hint && (
+          <p id={`${id}-hint`} className="text-xs text-stone-500">
+            {hint}
+          </p>
+        )}
+      </div>
+    </div>
   );
 }

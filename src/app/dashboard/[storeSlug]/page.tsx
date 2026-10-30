@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { requireStoreContext } from "@/server/auth/session";
+import { roleHasPermission } from "@/server/permissions/roles";
 import { getStoreDetails } from "@/server/services/stores";
 import { StoreStatusBadge } from "../store-status-badge";
+import { PublishButton } from "./publish-button";
 
 export const metadata: Metadata = { title: "Overview" };
 
@@ -9,12 +12,16 @@ export default async function StoreOverviewPage({
   params,
 }: PageProps<"/dashboard/[storeSlug]">) {
   const { storeSlug } = await params;
-  const store = await getStoreDetails(await requireStoreContext(storeSlug));
+  const context = await requireStoreContext(storeSlug);
+  const store = await getStoreDetails(context);
+  const canPublish =
+    roleHasPermission(context.role, "store:settings") &&
+    store.status !== "SUSPENDED";
 
-  // Launch steps unlock as later phases add products, payments and publishing.
+  // Payment setup arrives with checkout in Phase 3.
   const launchChecklist = [
     { label: "Create your store", done: true },
-    { label: "Add your first product", done: false },
+    { label: "Add your first product", done: store._count.products > 0 },
     { label: "Set up payments", done: false },
     { label: "Publish your store", done: store.status === "ACTIVE" },
   ];
@@ -24,7 +31,23 @@ export default async function StoreOverviewPage({
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-semibold">{store.name}</h1>
         <StoreStatusBadge status={store.status} />
+        <Link
+          href={`/s/${store.slug}`}
+          target="_blank"
+          className="text-sm underline"
+        >
+          {store.status === "ACTIVE"
+            ? "View storefront ↗"
+            : "Preview storefront ↗"}
+        </Link>
       </div>
+
+      {canPublish && (
+        <PublishButton
+          storeSlug={store.slug}
+          isPublished={store.status === "ACTIVE"}
+        />
+      )}
 
       <dl className="grid gap-4 rounded-xl border border-stone-200 bg-white p-5 text-sm sm:grid-cols-3">
         <div>

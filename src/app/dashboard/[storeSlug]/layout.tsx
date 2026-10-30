@@ -15,6 +15,15 @@ export default async function StoreDashboardLayout({
   // still check permissions themselves; hiding links is just for clarity.
   const navigation = [
     { href: `/dashboard/${store.slug}`, label: "Overview" },
+    ...(roleHasPermission(context.role, "catalog:edit")
+      ? [
+          { href: `/dashboard/${store.slug}/products`, label: "Products" },
+          {
+            href: `/dashboard/${store.slug}/collections`,
+            label: "Collections",
+          },
+        ]
+      : []),
     ...(roleHasPermission(context.role, "store:settings")
       ? [{ href: `/dashboard/${store.slug}/settings`, label: "Settings" }]
       : []),

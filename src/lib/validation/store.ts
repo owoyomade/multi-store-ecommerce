@@ -55,18 +55,27 @@ export const createStoreSchema = z.object({
   contactEmail: z.email("Enter a valid email"),
   primaryColor: hexColor,
   accentColor: hexColor,
+  theme: z.enum(["CLASSIC", "BOLD"]).default("CLASSIC"),
+  tagline: z
+    .string()
+    .trim()
+    .max(120, "At most 120 characters")
+    .optional()
+    .default(""),
 });
 
-export type CreateStoreInput = z.infer<typeof createStoreSchema>;
+export type CreateStoreInput = z.input<typeof createStoreSchema>;
 
 export const updateStoreBrandingSchema = createStoreSchema.pick({
   name: true,
   contactEmail: true,
   primaryColor: true,
   accentColor: true,
+  theme: true,
+  tagline: true,
 });
 
-export type UpdateStoreBrandingInput = z.infer<
+export type UpdateStoreBrandingInput = z.input<
   typeof updateStoreBrandingSchema
 >;
 

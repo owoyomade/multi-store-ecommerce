@@ -7,19 +7,13 @@ import {
   type UpdateStoreBrandingInput,
 } from "@/lib/validation/store";
 import { db } from "../db";
+import { FieldConflictError, RuleViolationError } from "../errors";
 import { requirePermission, type StoreContext } from "../tenancy/store-context";
 import { recordAudit } from "./audit";
 
-export class SlugTakenError extends Error {
-  constructor() {
-    super("That store address is already taken");
-    this.name = "SlugTakenError";
-  }
-}
-
 /**
- * Creates a store and makes the creator its Owner. Store, settings, membership
- * and audit entry are written in one transaction so a failure never leaves a
+ * Creates a store and makes the creator its Owner. Store, settings, membership,
+ * default stock location and audit entry are written in one transaction so a failure never leaves a
  * store without an owner.
  */
 export async function createStore(userId: string, input: CreateStoreInput) {
@@ -32,6 +26,9 @@ export async function createStore(userId: string, input: CreateStoreInput) {
           ...data,
           settings: { create: {} },
           memberships: { create: { userId, role: "OWNER" } },
+          inventoryLocations: {
+            create: { name: "Main warehouse", isDefault: true },
+          },
         },
         select: { id: true, slug: true },
       });
@@ -50,7 +47,10 @@ export async function createStore(userId: string, input: CreateStoreInput) {
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
-      throw new SlugTakenError();
+      throw new FieldConflictError(
+        "slug",
+        "That store address is already taken",
+      );
     }
     throw error;
   }
@@ -91,8 +91,12 @@ export async function getStoreDetails(context: StoreContext) {
       contactEmail: true,
       primaryColor: true,
       accentColor: true,
+      theme: true,
+      tagline: true,
       createdAt: true,
-      _count: { select: { memberships: true } },
+      _count: {
+        select: { memberships: true, products: { where: { deletedAt: null } } },
+      },
     },
   });
 }
@@ -121,5 +125,35 @@ export async function updateStoreBranding(
       metadata: { fields: Object.keys(data) },
     });
     return store;
+  });
+}
+
+/**
+ * Publishes (ACTIVE) or unpublishes (DRAFT) a store. A store suspended by the
+ * platform can't be republished by its owner.
+ */
+export async function setStorePublished(
+  context: StoreContext,
+  published: boolean,
+) {
+  requirePermission(context, "store:settings");
+  const status = published ? "ACTIVE" : "DRAFT";
+
+  await db.$transaction(async (tx) => {
+    const { count } = await tx.store.updateMany({
+      where: { id: context.storeId, status: { not: "SUSPENDED" } },
+      data: { status },
+    });
+    if (count === 0)
+      throw new RuleViolationError(
+        "This store is suspended. Contact support to restore it.",
+      );
+    await recordAudit(tx, {
+      storeId: context.storeId,
+      actorUserId: context.userId,
+      action: published ? "store.published" : "store.unpublished",
+      entityType: "store",
+      entityId: context.storeId,
+    });
   });
 }

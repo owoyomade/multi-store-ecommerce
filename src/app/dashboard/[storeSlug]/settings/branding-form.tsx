@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { TextField } from "@/components/ui/field";
+import { SelectField, TextField } from "@/components/ui/field";
 import { fieldErrorsOf, idleFormState } from "@/lib/form-state";
 import type { UpdateStoreBrandingInput } from "@/lib/validation/store";
 import { updateBrandingAction } from "./actions";
@@ -70,6 +70,26 @@ export function BrandingForm({ storeSlug, initialValues }: BrandingFormProps) {
           errors={fieldErrorsOf(state, "accentColor")}
         />
       </div>
+      <SelectField
+        label="Storefront style"
+        name="theme"
+        options={[
+          { value: "CLASSIC", label: "Classic — serif headings, soft corners" },
+          { value: "BOLD", label: "Bold — uppercase type, sharp corners" },
+        ]}
+        value={values.theme}
+        onChange={(event) => update("theme", event.target.value)}
+        errors={fieldErrorsOf(state, "theme")}
+      />
+      <TextField
+        label="Tagline"
+        name="tagline"
+        maxLength={120}
+        value={values.tagline}
+        onChange={(event) => update("tagline", event.target.value)}
+        hint="One line shown at the top of your storefront."
+        errors={fieldErrorsOf(state, "tagline")}
+      />
       <Button type="submit" pending={pending} pendingLabel="Saving…">
         Save settings
       </Button>

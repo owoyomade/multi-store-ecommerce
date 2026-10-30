@@ -11,3 +11,27 @@ body {
   background: var(--color-stone-50);
   color: var(--color-stone-900);
 }
+
+/* Storefront themes. The layout sets --sf-primary/--sf-accent from the
+   store's brand colours and data-theme from its chosen style. */
+.storefront {
+  --sf-radius: 0.875rem;
+  --sf-heading-font: var(--font-classic-heading);
+  background: #fbfaf8;
+  color: #1c1917;
+}
+.storefront[data-theme="BOLD"] {
+  --sf-radius: 0px;
+  --sf-heading-font: var(--font-bold-heading);
+  background: #ffffff;
+  color: #0a0a0a;
+}
+.storefront .sf-heading {
+  font-family: var(--sf-heading-font), ui-serif, Georgia, serif;
+  letter-spacing: -0.01em;
+}
+.storefront[data-theme="BOLD"] .sf-heading {
+  font-family: var(--sf-heading-font), ui-sans-serif, system-ui, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}

@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/server/db";
+import { FieldConflictError, RuleViolationError } from "@/server/errors";
 import {
   createStore,
   getStoreDetails,
   listStoresForUser,
-  SlugTakenError,
+  setStorePublished,
   updateStoreBranding,
 } from "@/server/services/stores";
 import {
@@ -49,7 +50,7 @@ describe("createStore", () => {
 
     await expect(
       createStore(bob.id, storeInput({ slug: "taken" })),
-    ).rejects.toBeInstanceOf(SlugTakenError);
+    ).rejects.toBeInstanceOf(FieldConflictError);
   });
 });
 
@@ -145,5 +146,56 @@ describe("tenant isolation", () => {
 
     expect(await getStoreContextForUser(alice.id, "store-a")).toBeNull();
     expect(await listStoresForUser(alice.id)).toEqual([]);
+  });
+});
+
+describe("setStorePublished", () => {
+  it("lets the owner publish and unpublish, with audit entries", async () => {
+    const alice = await createUser("Alice");
+    await createStore(alice.id, storeInput({ slug: "shop" }));
+    const context = await getStoreContextForUser(alice.id, "shop");
+    if (!context) throw new Error("expected membership");
+
+    await setStorePublished(context, true);
+    expect(
+      (await db.store.findUniqueOrThrow({ where: { slug: "shop" } })).status,
+    ).toBe("ACTIVE");
+    await setStorePublished(context, false);
+    expect(
+      (await db.store.findUniqueOrThrow({ where: { slug: "shop" } })).status,
+    ).toBe("DRAFT");
+    expect(
+      await db.auditLog.count({
+        where: { action: { in: ["store.published", "store.unpublished"] } },
+      }),
+    ).toBe(2);
+  });
+
+  it("can't bring back a store the platform suspended", async () => {
+    const alice = await createUser("Alice");
+    const store = await createStore(alice.id, storeInput({ slug: "shop" }));
+    await db.store.update({
+      where: { id: store.id },
+      data: { status: "SUSPENDED" },
+    });
+    const context = await getStoreContextForUser(alice.id, "shop");
+    if (!context) throw new Error("expected membership");
+
+    await expect(setStorePublished(context, true)).rejects.toBeInstanceOf(
+      RuleViolationError,
+    );
+  });
+
+  it("is refused for managers", async () => {
+    const alice = await createUser("Alice");
+    const store = await createStore(alice.id, storeInput({ slug: "shop" }));
+    const manager = await createUser("Manager");
+    await addMember(store.id, manager.id, "MANAGER");
+    const context = await getStoreContextForUser(manager.id, "shop");
+    if (!context) throw new Error("expected membership");
+
+    await expect(setStorePublished(context, true)).rejects.toBeInstanceOf(
+      ForbiddenError,
+    );
   });
 });

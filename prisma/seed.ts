@@ -1,19 +1,16 @@
-// Creates demo data: a platform admin, two independent stores and a staff
-// member who works in both with different roles. Safe to run more than once.
+// Creates demo data: a platform admin, two independent stores with catalogs,
+// and a staff member who works in both with different roles. Safe to run more
+// than once.
 //
 // Run with: npm run db:seed
+// (The seed command passes --conditions=react-server so this script may import
+// app modules marked "server-only", which it is: it runs on the server.)
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
-import { PrismaPg } from "@prisma/adapter-pg";
 import { hashPassword } from "better-auth/crypto";
-import { PrismaClient } from "../src/generated/prisma/client";
 import type { PlatformRole, StoreRole } from "../src/generated/prisma/enums";
-
-// The seed runs outside Next.js, so it builds its own client instead of
-// importing src/server/db.ts (which is marked server-only).
-const db = new PrismaClient({
-  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
-});
+import { db } from "../src/server/db";
+import { lumenCatalog, northbrewCatalog, seedCatalog } from "./seed-catalog";
 
 const demoPassword = process.env.SEED_DEMO_PASSWORD;
 if (!demoPassword || demoPassword.length < 10) {
@@ -60,6 +57,8 @@ type DemoStore = {
   contactEmail: string;
   primaryColor: string;
   accentColor: string;
+  theme: "CLASSIC" | "BOLD";
+  tagline: string;
   settings: {
     demoTaxRateBps: number;
     flatShippingCents: number;
@@ -74,8 +73,16 @@ async function upsertStore(
   const { settings, ...storeData } = store;
   const saved = await db.store.upsert({
     where: { slug: store.slug },
-    update: {},
-    create: { ...storeData, status: "ACTIVE", settings: { create: settings } },
+    // Keep the demo look current on re-runs without touching anything else.
+    update: { theme: storeData.theme, tagline: storeData.tagline },
+    create: {
+      ...storeData,
+      status: "ACTIVE",
+      settings: { create: settings },
+      inventoryLocations: {
+        create: { name: "Main warehouse", isDefault: true },
+      },
+    },
   });
 
   for (const member of members) {
@@ -107,6 +114,8 @@ async function main() {
       contactEmail: "hello@northbrew.example.test",
       primaryColor: "#3b2416",
       accentColor: "#d97706",
+      theme: "CLASSIC",
+      tagline: "Small-batch coffee, roasted in Toronto.",
       // 13% matches Ontario HST — a demo value, not tax advice.
       settings: {
         demoTaxRateBps: 1300,
@@ -129,6 +138,8 @@ async function main() {
       contactEmail: "support@lumen.example.test",
       primaryColor: "#0f172a",
       accentColor: "#e11d48",
+      theme: "BOLD",
+      tagline: "Everyday essentials. Made to last.",
       settings: {
         demoTaxRateBps: 800,
         flatShippingCents: 600,
@@ -140,6 +151,10 @@ async function main() {
       { userId: sam.id, role: "FULFILLMENT_AGENT" },
     ],
   );
+
+  console.log("Seeding catalogs…");
+  await seedCatalog("northbrew", maya.id, northbrewCatalog);
+  await seedCatalog("lumen", theo.id, lumenCatalog);
 
   console.log("Seeded demo data:");
   console.table([

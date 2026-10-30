@@ -5,6 +5,16 @@ import type { NextConfig } from "next";
 // "pages that read cookies are rendered per request" model is simpler to
 // reason about. We can opt individual storefront pages into caching later.
 const nextConfig: NextConfig = {
+  experimental: {
+    serverActions: {
+      // Product images may be up to 5 MB; leave room for the form's own overhead.
+      bodySizeLimit: "6mb",
+    },
+  },
+  images: {
+    // next/image may only optimise our own uploaded product images.
+    localPatterns: [{ pathname: "/media/**", search: "" }],
+  },
   turbopack: {
     rules: {
       "*.css": {

@@ -33,6 +33,8 @@ export default async function StoreSettingsPage({
           contactEmail: store.contactEmail,
           primaryColor: store.primaryColor,
           accentColor: store.accentColor,
+          theme: store.theme,
+          tagline: store.tagline ?? "",
         }}
       />
     </div>

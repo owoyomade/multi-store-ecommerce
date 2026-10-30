@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { StoreRole } from "@/generated/prisma/enums";
 import { db } from "@/server/db";
 import type { CreateStoreInput } from "@/lib/validation/store";
+import type { CreateProductInput } from "@/lib/validation/catalog";
 
 /** Empties every table between tests. CASCADE follows foreign keys. */
 export async function resetDatabase(): Promise<void> {
@@ -46,4 +47,28 @@ export async function addMember(
   role: StoreRole,
 ) {
   return db.storeMembership.create({ data: { storeId, userId, role } });
+}
+
+/** A signed-in staff member's context, as the dashboard would build it. */
+export async function contextFor(userId: string, storeSlug: string) {
+  const { getStoreContextForUser } =
+    await import("@/server/tenancy/store-context");
+  const context = await getStoreContextForUser(userId, storeSlug);
+  if (!context) throw new Error(`user is not a member of ${storeSlug}`);
+  return context;
+}
+
+export function productInput(
+  overrides: Partial<CreateProductInput> = {},
+): CreateProductInput {
+  return {
+    title: "Classic Tee",
+    slug: "classic-tee",
+    description: "Soft cotton tee",
+    status: "PUBLISHED",
+    price: "25.00",
+    skuPrefix: "TEE",
+    initialStock: 10,
+    ...overrides,
+  };
 }

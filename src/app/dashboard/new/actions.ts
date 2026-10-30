@@ -5,7 +5,8 @@ import { z } from "zod";
 import type { FormState } from "@/lib/form-state";
 import { createStoreSchema } from "@/lib/validation/store";
 import { requireUser } from "@/server/auth/session";
-import { createStore, SlugTakenError } from "@/server/services/stores";
+import { FieldConflictError } from "@/server/errors";
+import { createStore } from "@/server/services/stores";
 
 export async function createStoreAction(
   _previous: FormState,
@@ -27,11 +28,11 @@ export async function createStoreAction(
   try {
     storeSlug = (await createStore(user.id, parsed.data)).slug;
   } catch (error) {
-    if (error instanceof SlugTakenError) {
+    if (error instanceof FieldConflictError) {
       return {
         status: "error",
         message: error.message,
-        fieldErrors: { slug: [error.message] },
+        fieldErrors: { [error.field]: [error.message] },
       };
     }
     throw error;

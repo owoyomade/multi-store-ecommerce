@@ -112,19 +112,33 @@ model Store {
   contactEmail   String
   primaryColor   String      @default("#1f2937")
   accentColor    String      @default("#f59e0b")
+  theme          StoreTheme  @default(CLASSIC)
+  // One line shown in the storefront hero, e.g. "Small-batch coffee, roasted in Toronto".
+  tagline        String?
   logoStorageKey String?
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
   // Soft delete: old orders must keep pointing at a real store row.
   deletedAt      DateTime?
 
-  settings    StoreSettings?
-  memberships StoreMembership[]
-  invites     StoreInvite[]
-  auditLogs   AuditLog[]
+  settings           StoreSettings?
+  memberships        StoreMembership[]
+  invites            StoreInvite[]
+  auditLogs          AuditLog[]
+  products           Product[]
+  collections        Collection[]
+  inventoryLocations InventoryLocation[]
+  carts              Cart[]
 
   @@index([status])
   @@map("stores")
+}
+
+// Storefront look. Each theme changes typography and layout, not just colours,
+// so two stores can look clearly different.
+enum StoreTheme {
+  CLASSIC // serif headings, soft corners, warm feel
+  BOLD // uppercase sans-serif, square corners, high contrast
 }
 
 // Settings that change rarely and are only read by the dashboard and checkout.
@@ -201,4 +215,224 @@ model AuditLog {
 
   @@index([storeId, createdAt])
   @@map("audit_logs")
+}
+
+// Catalog
+
+enum ProductStatus {
+  DRAFT // only visible in the dashboard
+  PUBLISHED // visible on the storefront
+  ARCHIVED // hidden everywhere except old orders and the dashboard's archive filter
+}
+
+model Product {
+  id             String        @id @default(cuid())
+  storeId        String
+  store          Store         @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  title          String
+  // Unique per store, not platform-wide: two stores can both sell "classic-tee".
+  slug           String
+  description    String        @default("")
+  status         ProductStatus @default(DRAFT)
+  seoTitle       String?
+  seoDescription String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  deletedAt      DateTime?
+
+  options     ProductOption[]
+  variants    ProductVariant[]
+  images      ProductImage[]
+  collections CollectionProduct[]
+
+  @@unique([storeId, slug])
+  @@index([storeId, status])
+  @@map("products")
+}
+
+// An option such as "Size" with values ["S", "M", "L"]. At most two per product.
+model ProductOption {
+  id        String   @id @default(cuid())
+  storeId   String
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name      String
+  values    String[]
+  position  Int
+
+  @@unique([productId, position])
+  @@map("product_options")
+}
+
+// The thing a shopper actually buys: one combination of option values.
+// A product without options has exactly one variant.
+model ProductVariant {
+  id                  String    @id @default(cuid())
+  storeId             String
+  productId           String
+  product             Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  // e.g. "M / Black", or "Default" when the product has no options.
+  title               String
+  // Values in the same order as the product's options, e.g. ["M", "Black"].
+  optionValues        String[]
+  sku                 String
+  priceCents          Int
+  // The "was" price shown crossed out. Must be higher than priceCents when set.
+  compareAtPriceCents Int?
+  trackInventory      Boolean   @default(true)
+  position            Int
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  // Variants removed from a product are archived, not deleted, so the stock
+  // ledger and future order history keep pointing at a real row.
+  archivedAt          DateTime?
+
+  inventoryLevels    InventoryLevel[]
+  inventoryMovements InventoryMovement[]
+  cartItems          CartItem[]
+
+  @@unique([storeId, sku])
+  @@index([productId])
+  @@map("product_variants")
+}
+
+model ProductImage {
+  id         String   @id @default(cuid())
+  storeId    String
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  // Path inside the storage driver, e.g. "stores/<storeId>/products/<uuid>.webp".
+  storageKey String   @unique
+  altText    String   @default("")
+  width      Int
+  height     Int
+  position   Int
+  createdAt  DateTime @default(now())
+
+  @@index([productId, position])
+  @@map("product_images")
+}
+
+model Collection {
+  id          String              @id @default(cuid())
+  storeId     String
+  store       Store               @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  title       String
+  slug        String
+  description String              @default("")
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  products    CollectionProduct[]
+
+  @@unique([storeId, slug])
+  @@map("collections")
+}
+
+model CollectionProduct {
+  collectionId String
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  position     Int        @default(0)
+
+  @@id([collectionId, productId])
+  @@index([productId])
+  @@map("collection_products")
+}
+
+// Inventory
+
+// One default location per store for now; multi-location is a later phase.
+model InventoryLocation {
+  id        String   @id @default(cuid())
+  storeId   String
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  name      String
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  levels    InventoryLevel[]
+  movements InventoryMovement[]
+
+  @@index([storeId])
+  @@map("inventory_locations")
+}
+
+// Current stock for one variant at one location.
+// "Available to sell" is onHand - reserved; reservations arrive with checkout in Phase 3.
+model InventoryLevel {
+  id         String            @id @default(cuid())
+  storeId    String
+  variantId  String
+  variant    ProductVariant    @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  locationId String
+  location   InventoryLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  onHand     Int               @default(0)
+  reserved   Int               @default(0)
+  updatedAt  DateTime          @updatedAt
+
+  @@unique([variantId, locationId])
+  @@index([storeId])
+  @@map("inventory_levels")
+}
+
+enum InventoryMovementReason {
+  INITIAL_STOCK
+  ADJUSTMENT
+  RESTOCK
+  SALE
+  RETURN
+}
+
+// Append-only ledger: every change to onHand writes one row here, so stock
+// levels can always be explained and audited.
+model InventoryMovement {
+  id          String                  @id @default(cuid())
+  storeId     String
+  variantId   String
+  variant     ProductVariant          @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  locationId  String
+  location    InventoryLocation       @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  delta       Int
+  reason      InventoryMovementReason
+  actorUserId String?
+  note        String?
+  createdAt   DateTime                @default(now())
+
+  @@index([storeId, createdAt])
+  @@index([variantId])
+  @@map("inventory_movements")
+}
+
+// Shopping cart
+
+// A cart belongs to one store. The browser holds a random token in a cookie;
+// the cart stores variant IDs and quantities only — prices are always read
+// fresh from the catalog, so a shopper can never change what they pay.
+model Cart {
+  id        String     @id @default(cuid())
+  storeId   String
+  store     Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  // SHA-256 of the cookie token. A leaked database row can't be turned back into a working cookie.
+  tokenHash String     @unique
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  items     CartItem[]
+
+  @@index([storeId])
+  @@map("carts")
+}
+
+model CartItem {
+  id        String         @id @default(cuid())
+  cartId    String
+  cart      Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  variantId String
+  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  quantity  Int
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@unique([cartId, variantId])
+  @@map("cart_items")
 }
