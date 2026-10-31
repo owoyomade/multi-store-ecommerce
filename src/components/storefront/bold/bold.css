@@ -1,0 +1,73 @@
+/* Bold storefront theme: "the split stage". On wide screens one half of the
+   page is a picture that never moves while the other half scrolls, like a
+   garment hanging on a rail while you read its tag. */
+
+.bold-stage {
+  position: relative;
+  overflow: hidden;
+  background: var(--sf-primary);
+}
+
+@media (min-width: 768px) {
+  .bold-stage {
+    position: sticky;
+    top: 12px;
+    height: calc(100svh - 24px);
+  }
+}
+
+.bold-stage__photo {
+  object-fit: cover;
+}
+
+/* The slow crossfade between the stage's pictures. Every picture holds for a
+   few seconds, then fades into the next; the first one stays when motion is
+   reduced or there is only one picture. */
+@media (prefers-reduced-motion: no-preference) {
+  .bold-stage[data-count="2"] .bold-stage__frame {
+    animation: bold-crossfade-2 16s ease-in-out infinite;
+  }
+  .bold-stage[data-count="3"] .bold-stage__frame {
+    animation: bold-crossfade-3 24s ease-in-out infinite;
+  }
+}
+
+/* Only the first picture shows until the crossfade gives the next its turn
+   (and permanently, when motion is reduced). */
+.bold-stage__frame:not(:first-child) {
+  opacity: 0;
+}
+
+.bold-stage__frame {
+  position: absolute;
+  inset: 0;
+  animation-delay: calc(var(--frame) * 8s);
+}
+
+@keyframes bold-crossfade-2 {
+  0%,
+  44% {
+    opacity: 1;
+  }
+  50%,
+  94% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes bold-crossfade-3 {
+  0%,
+  29% {
+    opacity: 1;
+  }
+  33%,
+  96% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}

@@ -62,9 +62,12 @@ export default async function CartPage({
             in your cart.
           </p>
         )}
-        <ul className="divide-y divide-current/10 border-y border-current/10">
+        <ul className="space-y-2">
           {cart.lines.map((line) => (
-            <li key={line.id} className="flex gap-4 py-5">
+            <li
+              key={line.id}
+              className="flex gap-4 bg-[var(--sf-paper-deep)] p-4"
+            >
               <div className="relative size-24 shrink-0 overflow-hidden rounded-[var(--sf-radius)] bg-[var(--sf-primary)]/10">
                 {line.image && (
                   <Image
@@ -129,7 +132,7 @@ export default async function CartPage({
 
       <aside
         aria-labelledby="summary-heading"
-        className="h-fit rounded-[var(--sf-radius)] border border-current/15 p-6"
+        className="h-fit rounded-[var(--sf-radius)] bg-[var(--sf-paper-deep)] p-6"
       >
         <h2 id="summary-heading" className="sf-heading text-xl font-semibold">
           Summary

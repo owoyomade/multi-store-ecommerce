@@ -1,5 +1,6 @@
 import "server-only";
 import { Prisma } from "@/generated/prisma/client";
+import { parseStorefrontContent } from "@/lib/validation/storefront-content";
 import { db } from "../db";
 import { availableToSell } from "./inventory";
 
@@ -50,17 +51,23 @@ export async function getVisibleStore(
       accentColor: true,
       theme: true,
       tagline: true,
+      storefrontContent: true,
     },
   });
   if (!store) return null;
-  if (store.status === "ACTIVE") return { ...store, isPreview: false };
+  const { storefrontContent, ...storeFields } = store;
+  const visible = {
+    ...storeFields,
+    content: parseStorefrontContent(storefrontContent),
+  };
+  if (store.status === "ACTIVE") return { ...visible, isPreview: false };
 
   if (!viewerUserId) return null;
   const isMember = await db.storeMembership.findUnique({
     where: { storeId_userId: { storeId: store.id, userId: viewerUserId } },
     select: { id: true },
   });
-  return isMember ? { ...store, isPreview: true } : null;
+  return isMember ? { ...visible, isPreview: true } : null;
 }
 
 export async function listPublicCollections(storeId: string) {
@@ -242,4 +249,103 @@ export async function getPublicProduct(storeId: string, slug: string) {
       };
     }),
   };
+}
+
+/**
+ * The product the homepage features: the one the merchant chose, or, if
+ * none is chosen (or it was unpublished), the newest published product.
+ */
+export async function getFeaturedProduct(
+  storeId: string,
+  preferredSlug: string | undefined,
+) {
+  if (preferredSlug) {
+    const chosen = await getPublicProduct(storeId, preferredSlug);
+    if (chosen) return chosen;
+  }
+  const newest = await db.product.findFirst({
+    where: { storeId, status: "PUBLISHED", deletedAt: null },
+    orderBy: { createdAt: "desc" },
+    select: { slug: true },
+  });
+  return newest ? getPublicProduct(storeId, newest.slug) : null;
+}
+
+const PRICE_LIST_ITEMS_PER_GROUP = 8;
+
+/**
+ * Collections with their published products and lowest prices, for a
+ * price-list style overview. Products in no collection are gathered under
+ * "More" so nothing for sale is left out.
+ */
+export async function listPriceListGroups(storeId: string) {
+  const products = await db.product.findMany({
+    where: { storeId, status: "PUBLISHED", deletedAt: null },
+    orderBy: { title: "asc" },
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+      description: true,
+      collections: {
+        select: {
+          collection: { select: { id: true, title: true, slug: true } },
+        },
+      },
+      variants: {
+        where: { archivedAt: null },
+        select: {
+          priceCents: true,
+          trackInventory: true,
+          inventoryLevels: { select: { onHand: true, reserved: true } },
+        },
+      },
+    },
+  });
+
+  type Item = {
+    slug: string;
+    title: string;
+    note: string;
+    minPriceCents: number;
+    hasRange: boolean;
+    inStock: boolean;
+  };
+  const groups = new Map<
+    string,
+    { title: string; slug: string | null; items: Item[] }
+  >();
+
+  for (const product of products) {
+    if (product.variants.length === 0) continue;
+    const prices = product.variants.map((variant) => variant.priceCents);
+    const item: Item = {
+      slug: product.slug,
+      title: product.title,
+      // The first sentence of the description makes a one-line note.
+      note: product.description.split(/(?<=\.)\s/)[0]?.slice(0, 90) ?? "",
+      minPriceCents: Math.min(...prices),
+      hasRange: new Set(prices).size > 1,
+      inStock: product.variants.some(
+        (variant) => availableToSell(variant, variant.inventoryLevels) > 0,
+      ),
+    };
+    const targets = product.collections.length
+      ? product.collections.map(({ collection }) => collection)
+      : [{ id: "more", title: "More", slug: null }];
+    for (const target of targets) {
+      const group = groups.get(target.id) ?? {
+        title: target.title,
+        slug: target.slug,
+        items: [],
+      };
+      if (group.items.length < PRICE_LIST_ITEMS_PER_GROUP)
+        group.items.push(item);
+      groups.set(target.id, group);
+    }
+  }
+  // Named collections first (alphabetically), the catch-all last.
+  return [...groups.values()].sort((a, b) =>
+    a.slug === null ? 1 : b.slug === null ? -1 : a.title.localeCompare(b.title),
+  );
 }

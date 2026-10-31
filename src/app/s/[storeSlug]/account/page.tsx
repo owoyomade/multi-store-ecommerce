@@ -76,12 +76,12 @@ export default async function AccountPage({
             You haven&apos;t placed any orders with {store.name} yet.
           </p>
         ) : (
-          <ul className="divide-y divide-current/10 rounded-[var(--sf-radius)] border border-current/15">
+          <ul className="space-y-1">
             {orders.map((order) => (
               <li key={order.id}>
                 <Link
                   href={`${accountPath}/orders/${order.id}`}
-                  className="flex flex-wrap items-center justify-between gap-2 p-4 hover:bg-current/5"
+                  className="flex flex-wrap items-center justify-between gap-2 bg-[var(--sf-paper-deep)] p-4 transition-colors hover:bg-current/10"
                 >
                   <span className="font-medium">
                     Order #{order.orderNumber}
@@ -118,7 +118,7 @@ export default async function AccountPage({
             {addresses.map((address) => (
               <li
                 key={address.id}
-                className="rounded-[var(--sf-radius)] border border-current/15 p-4"
+                className="rounded-[var(--sf-radius)] bg-[var(--sf-paper-deep)] p-4"
               >
                 <AddressBlock address={address} />
                 <form

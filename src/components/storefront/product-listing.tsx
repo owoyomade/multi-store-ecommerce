@@ -163,7 +163,7 @@ export async function ProductListing({
       </p>
 
       {listing.products.length === 0 ? (
-        <div className="rounded-[var(--sf-radius)] border border-dashed border-current/20 p-12 text-center">
+        <div className="rounded-[var(--sf-radius)] bg-[var(--sf-paper-deep)] p-12 text-center">
           <p className="sf-heading text-lg">Nothing here yet</p>
           <p className="mt-1 text-sm opacity-70">
             {hasFilters

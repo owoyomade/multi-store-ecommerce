@@ -63,3 +63,7 @@ AGENTS.md
 
 # generated Prisma client (rebuilt by `npm install` / `npm run db:generate`)
 /src/generated/
+
+# design-tool working files (screenshots, reports)
+/.taste-skill/
+/.impeccable/

@@ -102,7 +102,7 @@ export default async function CheckoutPage({
 
       <aside
         aria-labelledby="order-heading"
-        className="h-fit rounded-[var(--sf-radius)] border border-current/15 p-6"
+        className="h-fit rounded-[var(--sf-radius)] bg-[var(--sf-paper-deep)] p-6"
       >
         <h2
           id="order-heading"

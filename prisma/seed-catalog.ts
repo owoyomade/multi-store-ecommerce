@@ -1,16 +1,46 @@
 // Demo catalog for the seed script. Products are created through the same
 // service functions the dashboard uses, so seeded data follows every rule
 // (variants, SKUs, stock ledger, image processing) exactly like real data.
-import sharp from "sharp";
 import { db } from "../src/server/db";
 import {
   addProductImage,
   createCollection,
   createProduct,
+  deleteProductImage,
   setProductCollections,
   updateVariants,
 } from "../src/server/services/catalog";
+import type { StoreContext } from "../src/server/tenancy/store-context";
 import { getStoreContextForUser } from "../src/server/tenancy/store-context";
+import { renderProductArt, type ProductArt } from "./seed-art";
+
+function illustrationAlt(title: string): string {
+  return `${title}, illustration`;
+}
+
+/**
+ * Gives a product its drawing, replacing an older image if needed. Runs on
+ * every seed, so existing demo stores pick up new artwork without losing
+ * their orders or stock history.
+ */
+async function syncProductArt(
+  context: StoreContext,
+  productId: string,
+  title: string,
+  art: ProductArt,
+) {
+  const images = await db.productImage.findMany({
+    where: { productId },
+    select: { id: true, altText: true },
+  });
+  if (images.length === 1 && images[0]?.altText === illustrationAlt(title))
+    return;
+  for (const image of images) await deleteProductImage(context, image.id);
+  await addProductImage(context, productId, {
+    bytes: await renderProductArt(art),
+    altText: illustrationAlt(title),
+  });
+}
 
 export type DemoProduct = {
   title: string;
@@ -23,8 +53,8 @@ export type DemoProduct = {
   status?: "DRAFT" | "PUBLISHED";
   options?: { name: string; values: string[] }[];
   collections: string[];
-  /** Background colour for the generated product image. */
-  imageColor: string;
+  /** Flat drawing used as the product image until real photography exists. */
+  art: ProductArt;
   /** Per-variant tweaks after creation, keyed by variant title, e.g. a pricier 1 kg bag. */
   variantOverrides?: Record<string, { price?: string; stock?: number }>;
 };
@@ -32,55 +62,7 @@ export type DemoProduct = {
 export type DemoCatalog = {
   collections: { title: string; slug: string; description: string }[];
   products: DemoProduct[];
-  imageStyle: "classic" | "bold";
 };
-
-function escapeXml(text: string): string {
-  return text.replace(
-    /[<>&"']/g,
-    (character) => `&#${character.charCodeAt(0)};`,
-  );
-}
-
-/**
- * Draws a simple product "photo" as an SVG and renders it to PNG, so the demo
- * has visuals without shipping stock photography. Clearly placeholder art.
- */
-async function generateProductImage(
-  title: string,
-  color: string,
-  style: DemoCatalog["imageStyle"],
-) {
-  // Wrap the title onto lines of about 12 characters so it fills the image.
-  const lines = title.split(" ").reduce<string[]>((wrapped, word) => {
-    const last = wrapped.at(-1);
-    if (last && `${last} ${word}`.length <= 12)
-      wrapped[wrapped.length - 1] = `${last} ${word}`;
-    else wrapped.push(word);
-    return wrapped;
-  }, []);
-  const isBold = style === "bold";
-  const fontSize = isBold ? 76 : 70;
-  const lineHeight = fontSize * 1.15;
-  const text = lines
-    .map(
-      (line, index) =>
-        `<text x="400" y="${400 + fontSize / 3 + (index - (lines.length - 1) / 2) * lineHeight}" text-anchor="middle" font-family="${isBold ? "Helvetica, Arial, sans-serif" : "Georgia, serif"}" font-size="${fontSize}" font-weight="${isBold ? 800 : 500}" fill="#ffffff">${escapeXml(isBold ? line.toUpperCase() : line)}</text>`,
-    )
-    .join("");
-  const shape = isBold
-    ? `<rect x="80" y="80" width="640" height="640" fill="#000000" fill-opacity="0.18"/>`
-    : `<rect x="110" y="110" width="580" height="580" rx="64" fill="#ffffff" fill-opacity="0.12"/>`;
-
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800">
-    <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="${color}"/><stop offset="1" stop-color="${color}" stop-opacity="0.75"/>
-    </linearGradient></defs>
-    <rect width="800" height="800" fill="#1a1a1a"/><rect width="800" height="800" fill="url(#g)"/>
-    ${shape}${text}
-  </svg>`;
-  return sharp(Buffer.from(svg)).png().toBuffer();
-}
 
 export async function seedCatalog(
   storeSlug: string,
@@ -91,7 +73,15 @@ export async function seedCatalog(
   if (!context) throw new Error(`Seed owner is not a member of ${storeSlug}`);
 
   if ((await db.product.count({ where: { storeId: context.storeId } })) > 0) {
-    console.log(`  ${storeSlug}: catalog already present, skipping`);
+    for (const item of catalog.products) {
+      const product = await db.product.findFirst({
+        where: { storeId: context.storeId, slug: item.slug },
+        select: { id: true },
+      });
+      if (product)
+        await syncProductArt(context, product.id, item.title, item.art);
+    }
+    console.log(`  ${storeSlug}: catalog already present, artwork refreshed`);
     return;
   }
 
@@ -141,14 +131,7 @@ export async function seedCatalog(
       );
     }
 
-    await addProductImage(context, product.id, {
-      bytes: await generateProductImage(
-        item.title,
-        item.imageColor,
-        catalog.imageStyle,
-      ),
-      altText: `${item.title} product image`,
-    });
+    await syncProductArt(context, product.id, item.title, item.art);
     await setProductCollections(
       context,
       product.id,
@@ -172,7 +155,6 @@ const oneKiloPrices = (price: string) =>
   );
 
 export const northbrewCatalog: DemoCatalog = {
-  imageStyle: "classic",
   collections: [
     {
       title: "Single origin",
@@ -201,7 +183,13 @@ export const northbrewCatalog: DemoCatalog = {
       stock: 30,
       options: [coffeeSizes, grinds],
       collections: ["single-origin"],
-      imageColor: "#8a5a3c",
+      art: {
+        kind: "bag",
+        ground: "#d9cfc0",
+        body: "#6b3f2a",
+        detail: "#ecebe6",
+        label: ["Yirgacheffe", "Ethiopia, washed"],
+      },
       variantOverrides: oneKiloPrices("68.00"),
     },
     {
@@ -213,7 +201,13 @@ export const northbrewCatalog: DemoCatalog = {
       stock: 40,
       options: [coffeeSizes, grinds],
       collections: ["single-origin"],
-      imageColor: "#6b4226",
+      art: {
+        kind: "bag",
+        ground: "#cfc6b6",
+        body: "#4a2c1d",
+        detail: "#ecebe6",
+        label: ["Huila", "Colombia"],
+      },
       variantOverrides: oneKiloPrices("62.00"),
     },
     {
@@ -227,7 +221,13 @@ export const northbrewCatalog: DemoCatalog = {
       stock: 12,
       options: [grinds],
       collections: ["single-origin"],
-      imageColor: "#7c2d12",
+      art: {
+        kind: "bag",
+        ground: "#d8cbb8",
+        body: "#7c2d12",
+        detail: "#ecebe6",
+        label: ["Nyeri", "Kenya"],
+      },
       variantOverrides: { Espresso: { stock: 0 } },
     },
     {
@@ -240,7 +240,13 @@ export const northbrewCatalog: DemoCatalog = {
       stock: 60,
       options: [coffeeSizes, grinds],
       collections: ["gifts"],
-      imageColor: "#3b2416",
+      art: {
+        kind: "bag",
+        ground: "#c9bfae",
+        body: "#3b2416",
+        detail: "#ecebe6",
+        label: ["House Blend", "Northbrew"],
+      },
       variantOverrides: oneKiloPrices("54.00"),
     },
     {
@@ -252,7 +258,13 @@ export const northbrewCatalog: DemoCatalog = {
       skuPrefix: "DECAF",
       stock: 0,
       collections: ["single-origin"],
-      imageColor: "#57534e",
+      art: {
+        kind: "bag",
+        ground: "#d4d0c8",
+        body: "#57534e",
+        detail: "#ecebe6",
+        label: ["Decaf", "Swiss Water"],
+      },
     },
     {
       title: "Ceramic Pour-Over Dripper",
@@ -264,7 +276,12 @@ export const northbrewCatalog: DemoCatalog = {
       stock: 15,
       options: [{ name: "Colour", values: ["Cream", "Charcoal"] }],
       collections: ["brewing-gear", "gifts"],
-      imageColor: "#b45309",
+      art: {
+        kind: "dripper",
+        ground: "#d8cbb8",
+        body: "#ecebe6",
+        detail: "#3b2416",
+      },
     },
     {
       title: "Burr Hand Grinder",
@@ -275,7 +292,12 @@ export const northbrewCatalog: DemoCatalog = {
       skuPrefix: "GRIND",
       stock: 4,
       collections: ["brewing-gear"],
-      imageColor: "#44403c",
+      art: {
+        kind: "grinder",
+        ground: "#d4cdc2",
+        body: "#5c5650",
+        detail: "#2a2622",
+      },
     },
     {
       title: "Glass Carafe",
@@ -285,7 +307,12 @@ export const northbrewCatalog: DemoCatalog = {
       skuPrefix: "CARAFE",
       stock: 20,
       collections: ["brewing-gear"],
-      imageColor: "#92400e",
+      art: {
+        kind: "carafe",
+        ground: "#d2d6d4",
+        body: "#a9bcc0",
+        detail: "#3b2416",
+      },
     },
     {
       title: "Enamel Camp Mug",
@@ -296,7 +323,12 @@ export const northbrewCatalog: DemoCatalog = {
       stock: 50,
       options: [{ name: "Colour", values: ["Forest", "Rust", "Midnight"] }],
       collections: ["gifts", "brewing-gear"],
-      imageColor: "#a16207",
+      art: {
+        kind: "mug",
+        ground: "#c9d3c4",
+        body: "#2f4a3a",
+        detail: "#ecebe6",
+      },
     },
     {
       title: "Coffee Lover's Gift Box",
@@ -307,7 +339,12 @@ export const northbrewCatalog: DemoCatalog = {
       skuPrefix: "GIFT",
       stock: 10,
       collections: ["gifts"],
-      imageColor: "#78350f",
+      art: {
+        kind: "giftbox",
+        ground: "#3b2416",
+        body: "#d97706",
+        detail: "#ecebe6",
+      },
     },
     {
       title: "Holiday Spice Blend",
@@ -319,7 +356,13 @@ export const northbrewCatalog: DemoCatalog = {
       stock: 0,
       status: "DRAFT",
       collections: [],
-      imageColor: "#9a3412",
+      art: {
+        kind: "bag",
+        ground: "#d8cbb8",
+        body: "#9a3412",
+        detail: "#ecebe6",
+        label: ["Holiday", "Spice blend"],
+      },
     },
   ],
 };
@@ -327,7 +370,6 @@ export const northbrewCatalog: DemoCatalog = {
 const apparelSizes = { name: "Size", values: ["S", "M", "L", "XL"] };
 
 export const lumenCatalog: DemoCatalog = {
-  imageStyle: "bold",
   collections: [
     { title: "Tops", slug: "tops", description: "Tees, shirts and knits." },
     {
@@ -355,7 +397,12 @@ export const lumenCatalog: DemoCatalog = {
         { name: "Colour", values: ["Black", "White", "Sand"] },
       ],
       collections: ["tops"],
-      imageColor: "#111827",
+      art: {
+        kind: "tee",
+        ground: "#e7e5e1",
+        body: "#0f172a",
+        detail: "#1f2a44",
+      },
     },
     {
       title: "Merino Crewneck",
@@ -367,7 +414,12 @@ export const lumenCatalog: DemoCatalog = {
       stock: 10,
       options: [apparelSizes, { name: "Colour", values: ["Charcoal", "Oat"] }],
       collections: ["tops"],
-      imageColor: "#374151",
+      art: {
+        kind: "crewneck",
+        ground: "#e2e0dc",
+        body: "#4b4f57",
+        detail: "#3a3e45",
+      },
     },
     {
       title: "Linen Camp Shirt",
@@ -379,7 +431,12 @@ export const lumenCatalog: DemoCatalog = {
       stock: 0,
       options: [apparelSizes],
       collections: ["tops"],
-      imageColor: "#9f1239",
+      art: {
+        kind: "shirt",
+        ground: "#efe3e5",
+        body: "#9f1239",
+        detail: "#7f0e2e",
+      },
     },
     {
       title: "Ripstop Overshirt",
@@ -391,7 +448,12 @@ export const lumenCatalog: DemoCatalog = {
       stock: 8,
       options: [apparelSizes, { name: "Colour", values: ["Olive", "Black"] }],
       collections: ["outerwear"],
-      imageColor: "#1e293b",
+      art: {
+        kind: "shirt",
+        ground: "#e4e3dc",
+        body: "#5b5a3a",
+        detail: "#3f3e28",
+      },
     },
     {
       title: "Waxed Field Jacket",
@@ -404,7 +466,12 @@ export const lumenCatalog: DemoCatalog = {
       stock: 5,
       options: [apparelSizes],
       collections: ["outerwear"],
-      imageColor: "#e11d48",
+      art: {
+        kind: "jacket",
+        ground: "#e7e5e1",
+        body: "#4a3b2a",
+        detail: "#2f251a",
+      },
       variantOverrides: { XL: { stock: 0 } },
     },
     {
@@ -416,7 +483,12 @@ export const lumenCatalog: DemoCatalog = {
       stock: 14,
       options: [{ name: "Waist", values: ["30", "32", "34", "36"] }],
       collections: [],
-      imageColor: "#475569",
+      art: {
+        kind: "chino",
+        ground: "#e7e5e1",
+        body: "#8a7e6a",
+        detail: "#6e6455",
+      },
     },
     {
       title: "Canvas Tote",
@@ -427,7 +499,12 @@ export const lumenCatalog: DemoCatalog = {
       skuPrefix: "TOTE",
       stock: 40,
       collections: ["accessories"],
-      imageColor: "#0f172a",
+      art: {
+        kind: "tote",
+        ground: "#0f172a",
+        body: "#e7e2d6",
+        detail: "#c9c2b2",
+      },
     },
     {
       title: "Ribbed Beanie",
@@ -438,7 +515,12 @@ export const lumenCatalog: DemoCatalog = {
       stock: 30,
       options: [{ name: "Colour", values: ["Black", "Red", "Grey"] }],
       collections: ["accessories"],
-      imageColor: "#be123c",
+      art: {
+        kind: "beanie",
+        ground: "#e7e5e1",
+        body: "#be123c",
+        detail: "#9b0f31",
+      },
     },
     {
       title: "Logo Cap",
@@ -449,7 +531,12 @@ export const lumenCatalog: DemoCatalog = {
       skuPrefix: "CAP",
       stock: 22,
       collections: ["accessories"],
-      imageColor: "#1f2937",
+      art: {
+        kind: "cap",
+        ground: "#e7e5e1",
+        body: "#1f2937",
+        detail: "#e11d48",
+      },
     },
     {
       title: "Archive Sample Jacket",
@@ -461,7 +548,12 @@ export const lumenCatalog: DemoCatalog = {
       stock: 1,
       status: "DRAFT",
       collections: [],
-      imageColor: "#334155",
+      art: {
+        kind: "jacket",
+        ground: "#e2e0dc",
+        body: "#334155",
+        detail: "#1e293b",
+      },
     },
   ],
 };

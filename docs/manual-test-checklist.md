@@ -33,7 +33,7 @@ Run through this after setup (see README). Each item says what to do and what yo
 
 ### Storefronts (signed out is fine)
 
-- [ ] **Two different looks.** Open http://localhost:3210/s/northbrew and http://localhost:3210/s/lumen. Northbrew has serif headings and rounded corners; Lumen has uppercase type and square corners, each in its own colours.
+- [ ] **Two different looks.** Open http://localhost:3210/s/northbrew and http://localhost:3210/s/lumen. Northbrew (Classic) opens with its label card over a photograph of roasted beans, which shrinks to a corner stub as you scroll on desktop, then a featured coffee, a printed price list and the founder's letter. Lumen (Bold) is split in two on desktop: a still, slowly crossfading picture on the right while the left scrolls through a striped card, the featured tee, the letter and large collection names. Every picture has a caption, and all credits are in each footer.
 - [ ] **Drafts stay hidden.** Neither store lists "Holiday Spice Blend" or "Archive Sample Jacket". Visiting `/s/northbrew/products/holiday-blend` shows "Page not found".
 - [ ] **Browse.** Click a collection in the header, then a product. Pick options: the price and stock message update (e.g. Ethiopia Yirgacheffe 1 kg costs more than 250 g).
 - [ ] **Sold out.** Kenya Nyeri / Espresso and Swiss Water Decaf show as sold out, and "Add to cart" is disabled.

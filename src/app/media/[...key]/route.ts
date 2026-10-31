@@ -8,8 +8,8 @@ export async function GET(
 ) {
   const key = (await params).key.join("/");
 
-  // Only processed product images are ever served from here.
-  if (!/^stores\/[a-z0-9]+\/products\/[a-f0-9-]+\.webp$/.test(key)) {
+  // Only processed product and storefront images are ever served from here.
+  if (!/^stores\/[a-z0-9]+\/(products|content)\/[a-f0-9-]+\.webp$/.test(key)) {
     return new Response("Not found", { status: 404 });
   }
 

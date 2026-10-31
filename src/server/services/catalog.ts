@@ -13,7 +13,7 @@ import {
 } from "@/lib/validation/catalog";
 import { db } from "../db";
 import { FieldConflictError, NotFoundError } from "../errors";
-import { processProductImage } from "../storage/images";
+import { processUploadedImage } from "../storage/images";
 import { storage } from "../storage/storage";
 import { requirePermission, type StoreContext } from "../tenancy/store-context";
 import { recordAudit } from "./audit";
@@ -390,7 +390,7 @@ export async function addProductImage(
     );
   }
 
-  const image = await processProductImage(upload.bytes);
+  const image = await processUploadedImage(upload.bytes);
   // The key is generated here, never taken from the upload's file name.
   const storageKey = `stores/${context.storeId}/products/${randomUUID()}.webp`;
   await storage.put(storageKey, image.data);

@@ -48,7 +48,7 @@ export default async function ShopperOrderPage({
       <p className="mt-1 text-sm opacity-70">
         Placed {order.createdAt.toLocaleString("en-CA")}
       </p>
-      <div className="mt-6 grid gap-8 rounded-[var(--sf-radius)] border border-current/15 p-6 sm:grid-cols-[2fr_1fr]">
+      <div className="mt-6 grid gap-8 rounded-[var(--sf-radius)] bg-[var(--sf-paper-deep)] p-6 sm:grid-cols-[2fr_1fr]">
         <OrderSummary {...order} />
         <div>
           <h2 className="mb-2 text-sm font-semibold">Shipping to</h2>

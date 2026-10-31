@@ -1,0 +1,42 @@
+[
+  {
+    "file": "hero-roasted-beans.webp",
+    "alt": "Roasted coffee beans, close up",
+    "caption": "Roasted coffee beans",
+    "credit": "\"Roasted coffee beans\" by MarkSweep, public domain, via Wikimedia Commons",
+    "width": 1600,
+    "height": 1200
+  },
+  {
+    "file": "plate-coffea-arabica.webp",
+    "alt": "Botanical engraving of a coffee branch with white flowers and red cherries",
+    "caption": "Coffea arabica, coloured engraving",
+    "credit": "\"Coffee plant (Coffea arabica): flowering and fruiting stem\", Wellcome Collection, CC BY 4.0, via Wikimedia Commons",
+    "width": 1308,
+    "height": 1600
+  },
+  {
+    "file": "plate-las-nubes-1875.webp",
+    "alt": "Sepia photograph of pickers among coffee trees on a hillside",
+    "caption": "Coffee harvest at Las Nubes, Guatemala, 1875",
+    "credit": "\"Coffee Harvesting, Las Nubes-Guatemala\" by Eadweard Muybridge, 1875, public domain (CC0), via The Metropolitan Museum of Art",
+    "width": 1600,
+    "height": 954
+  },
+  {
+    "file": "letter-pissarro.webp",
+    "alt": "Painting of a young woman stirring a cup of coffee by a window",
+    "caption": "Camille Pissarro, Young Peasant Having Her Coffee, 1881",
+    "credit": "\"Young Peasant Having Her Coffee\" by Camille Pissarro, 1881, public domain (CC0), via Art Institute of Chicago",
+    "width": 1323,
+    "height": 1600
+  },
+  {
+    "file": "footer-toronto-postcard.webp",
+    "alt": "Hand-coloured postcard of Howard Park Avenue in Toronto with a streetcar and a horse-drawn wagon",
+    "caption": "Howard Park Avenue, Toronto, early 1900s postcard",
+    "credit": "\"Howard Park Avenue and School, Toronto\" postcard, public domain, via Wikimedia Commons",
+    "width": 1593,
+    "height": 1011
+  }
+]

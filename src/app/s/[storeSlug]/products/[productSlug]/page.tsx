@@ -86,7 +86,7 @@ export default async function ProductPage({
             variants={product.variants}
           />
           {product.description && (
-            <div className="mt-8 border-t border-current/10 pt-6">
+            <div className="mt-10">
               <h2 className="sr-only">Description</h2>
               {/* React escapes text, so merchant-written descriptions can't inject HTML. */}
               <p className="leading-relaxed whitespace-pre-line opacity-90">

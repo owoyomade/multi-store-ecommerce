@@ -68,7 +68,7 @@ export default async function CheckoutSuccessPage({
         </>
       )}
 
-      <div className="mt-8 grid gap-8 rounded-[var(--sf-radius)] border border-current/15 p-6 sm:grid-cols-[2fr_1fr]">
+      <div className="mt-8 grid gap-8 rounded-[var(--sf-radius)] bg-[var(--sf-paper-deep)] p-6 sm:grid-cols-[2fr_1fr]">
         <OrderSummary {...order} />
         <div>
           <h2 className="mb-2 text-sm font-semibold">Shipping to</h2>

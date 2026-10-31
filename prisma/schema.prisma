@@ -101,26 +101,30 @@ enum StoreStatus {
 }
 
 model Store {
-  id             String      @id @default(cuid())
-  name           String
+  id                String      @id @default(cuid())
+  name              String
   // Used in URLs (/s/northbrew) and subdomains, so it is unique platform-wide.
-  slug           String      @unique
-  status         StoreStatus @default(DRAFT)
+  slug              String      @unique
+  status            StoreStatus @default(DRAFT)
   // ISO 4217 code such as "CAD". All prices in this store use this currency.
-  currency       String      @db.Char(3)
+  currency          String      @db.Char(3)
   // ISO 3166-1 alpha-2 code such as "CA".
-  country        String      @db.Char(2)
-  contactEmail   String
-  primaryColor   String      @default("#1f2937")
-  accentColor    String      @default("#f59e0b")
-  theme          StoreTheme  @default(CLASSIC)
+  country           String      @db.Char(2)
+  contactEmail      String
+  primaryColor      String      @default("#1f2937")
+  accentColor       String      @default("#f59e0b")
+  theme             StoreTheme  @default(CLASSIC)
   // One line shown in the storefront hero, e.g. "Small-batch coffee, roasted in Toronto".
-  tagline        String?
-  logoStorageKey String?
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  tagline           String?
+  // Homepage content beyond the basics: hero picture, short facts, the
+  // featured product, the founder's letter and credited supporting pictures.
+  // Shape is validated by storefrontContentSchema (src/lib/validation/storefront-content.ts).
+  storefrontContent Json?
+  logoStorageKey    String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
   // Soft delete: old orders must keep pointing at a real store row.
-  deletedAt      DateTime?
+  deletedAt         DateTime?
 
   settings           StoreSettings?
   memberships        StoreMembership[]

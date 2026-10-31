@@ -63,7 +63,7 @@ export function CheckoutForm({
       {state.status === "error" && (
         <p
           role="alert"
-          className="rounded-[var(--sf-radius)] border border-red-200 bg-red-50 p-3 text-sm text-red-800"
+          className="rounded-[var(--sf-radius)] bg-red-100 p-3 text-base text-red-900"
         >
           {state.message}
         </p>

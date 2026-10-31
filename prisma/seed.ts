@@ -11,6 +11,11 @@ import { hashPassword } from "better-auth/crypto";
 import type { PlatformRole, StoreRole } from "../src/generated/prisma/enums";
 import { db } from "../src/server/db";
 import { lumenCatalog, northbrewCatalog, seedCatalog } from "./seed-catalog";
+import {
+  lumenStorefront,
+  northbrewStorefront,
+  seedStorefront,
+} from "./seed-storefront";
 
 const demoPassword = process.env.SEED_DEMO_PASSWORD;
 if (!demoPassword || demoPassword.length < 10) {
@@ -155,6 +160,8 @@ async function main() {
   console.log("Seeding catalogs…");
   await seedCatalog("northbrew", maya.id, northbrewCatalog);
   await seedCatalog("lumen", theo.id, lumenCatalog);
+  await seedStorefront("northbrew", maya.id, northbrewStorefront);
+  await seedStorefront("lumen", theo.id, lumenStorefront);
 
   console.log("Seeded demo data:");
   console.table([

@@ -12,26 +12,54 @@ body {
   color: var(--color-stone-900);
 }
 
-/* Storefront themes. The layout sets --sf-primary/--sf-accent from the
-   store's brand colours and data-theme from its chosen style. */
+/* Storefront themes. The layout sets the brand colours (--sf-primary,
+   --sf-accent and readable text colours for each) from the store's data, and
+   data-theme from the style the merchant chose. Paper and ink are fixed per
+   theme so any brand colour sits on a calm, readable ground. */
 .storefront {
-  --sf-radius: 0.875rem;
-  --sf-heading-font: var(--font-classic-heading);
-  background: #fbfaf8;
-  color: #1c1917;
+  overflow-x: clip;
+  --sf-radius: 0px;
+}
+.storefront[data-theme="CLASSIC"] {
+  --sf-paper: #e9e7e3;
+  --sf-paper-deep: #dcd9d3;
+  --sf-ink: #241c17;
+  --sf-muted: #574e47;
+  --sf-heading-font: var(--font-classic);
+  background: var(--sf-paper);
+  color: var(--sf-ink);
+  font-family: var(--font-classic), ui-serif, Georgia, serif;
 }
 .storefront[data-theme="BOLD"] {
-  --sf-radius: 0px;
+  --sf-paper: #ffffff;
+  --sf-paper-deep: #eceae6;
+  --sf-ink: #0a0a0a;
+  --sf-muted: #4a4a4a;
   --sf-heading-font: var(--font-bold-heading);
-  background: #ffffff;
-  color: #0a0a0a;
+  background: var(--sf-paper);
+  color: var(--sf-ink);
 }
 .storefront .sf-heading {
   font-family: var(--sf-heading-font), ui-serif, Georgia, serif;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.026em;
+  font-weight: 400;
 }
 .storefront[data-theme="BOLD"] .sf-heading {
   font-family: var(--sf-heading-font), ui-sans-serif, system-ui, sans-serif;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.01em;
+  font-weight: 700;
+}
+
+/* Breaks a section out of the centred page column to the full screen width. */
+.sf-bleed {
+  width: 100vw;
+  margin-inline: calc(50% - 50vw);
+}
+
+/* One pair of page margins for every storefront section. */
+.sf-container {
+  max-width: 1360px;
+  margin-inline: auto;
+  padding-inline: clamp(16px, 2.5vw, 32px);
 }

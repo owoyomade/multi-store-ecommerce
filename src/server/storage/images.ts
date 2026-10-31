@@ -9,14 +9,15 @@ const MAX_DIMENSION = 2000;
 export type ProcessedImage = { data: Buffer; width: number; height: number };
 
 /**
- * Turns an uploaded file into a safe, web-ready WebP image.
+ * Turns an uploaded file (a product photo or a storefront picture) into a
+ * safe, web-ready WebP image.
  *
  * We never trust the file name or the browser's content type. Instead sharp
  * decodes the actual bytes: anything that isn't a real JPEG/PNG/WebP/AVIF is
  * rejected. Re-encoding also strips metadata (such as GPS location in phone
  * photos) and destroys any hidden payload in a file pretending to be an image.
  */
-export async function processProductImage(
+export async function processUploadedImage(
   upload: Buffer,
 ): Promise<ProcessedImage> {
   if (upload.byteLength === 0) {

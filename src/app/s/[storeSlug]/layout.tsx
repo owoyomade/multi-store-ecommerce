@@ -1,18 +1,22 @@
 import type { Metadata } from "next";
-import { Fraunces, Space_Grotesk } from "next/font/google";
+import { STIX_Two_Text, Space_Grotesk } from "next/font/google";
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import { readableTextColor } from "@/lib/color";
 import { getCart } from "@/server/services/cart";
 import { listPublicCollections } from "@/server/services/storefront";
 import { storefrontBasePath } from "@/server/storefront-path";
+import { RevealOnScroll } from "@/components/storefront/reveal-on-scroll";
+import { StorefrontFooter } from "@/components/storefront/storefront-footer";
 import { readCartToken } from "./cart-cookie";
 import { loadStorefront } from "./load-store";
 
-// Each theme gets its own heading typeface; body text stays on the system sans.
-const classicHeading = Fraunces({
+// Classic sets everything in one bookish serif, like a printed label;
+// Bold uses a geometric grotesk for headings over the system sans.
+const classicFace = STIX_Two_Text({
   subsets: ["latin"],
-  variable: "--font-classic-heading",
+  style: ["normal", "italic"],
+  variable: "--font-classic",
 });
 const boldHeading = Space_Grotesk({
   subsets: ["latin"],
@@ -62,9 +66,10 @@ export default async function StorefrontLayout({
 
   return (
     <div
+      id="top"
       data-theme={store.theme}
       style={themeVariables}
-      className={`storefront flex flex-1 flex-col ${classicHeading.variable} ${boldHeading.variable}`}
+      className={`storefront flex flex-1 flex-col ${classicFace.variable} ${boldHeading.variable}`}
     >
       {store.isPreview && (
         <p
@@ -76,8 +81,11 @@ export default async function StorefrontLayout({
       )}
 
       <header className="bg-[var(--sf-primary)] text-[var(--sf-on-primary)]">
-        <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-4">
-          <Link href={base || "/"} className="sf-heading text-xl font-semibold">
+        <div className="sf-container flex items-center gap-4 py-4">
+          <Link
+            href={base || "/"}
+            className="sf-heading text-[18px] sm:text-[22px]"
+          >
             {store.name}
           </Link>
 
@@ -115,7 +123,7 @@ export default async function StorefrontLayout({
                 id="store-search"
                 name="q"
                 placeholder="Search"
-                className="w-40 rounded-[var(--sf-radius)] border border-current/30 bg-white/10 px-3 py-1.5 text-sm placeholder:text-current/60 focus:bg-white/20 focus:outline-none"
+                className="w-44 rounded-[var(--sf-radius)] bg-white/12 px-3 py-1.5 text-sm placeholder:text-current/70 focus:bg-white/20 focus:outline-2 focus:outline-current"
               />
             </form>
             <Link
@@ -129,10 +137,10 @@ export default async function StorefrontLayout({
 
           {/* A native <details> menu works without JavaScript and is keyboard accessible. */}
           <details className="relative md:hidden">
-            <summary className="cursor-pointer list-none rounded-[var(--sf-radius)] border border-current/30 px-3 py-1.5 text-sm">
+            <summary className="cursor-pointer list-none rounded-[var(--sf-radius)] bg-white/12 px-3 py-1.5 text-sm">
               Menu
             </summary>
-            <div className="absolute right-0 z-20 mt-2 w-64 rounded-[var(--sf-radius)] bg-white p-4 text-stone-900 shadow-lg">
+            <div className="absolute right-0 z-20 mt-2 w-64 rounded-[var(--sf-radius)] bg-[var(--sf-paper)] p-4 text-[var(--sf-ink)]">
               <form action={`${base}/products`} role="search" className="mb-3">
                 <label htmlFor="store-search-mobile" className="sr-only">
                   Search {store.name}
@@ -141,7 +149,7 @@ export default async function StorefrontLayout({
                   id="store-search-mobile"
                   name="q"
                   placeholder="Search products"
-                  className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
+                  className="w-full rounded-[var(--sf-radius)] bg-[var(--sf-paper-deep)] px-3 py-2 text-sm"
                 />
               </form>
               <nav aria-label="Store (mobile)" className="flex flex-col gap-1">
@@ -152,7 +160,7 @@ export default async function StorefrontLayout({
                   <Link
                     key={link.href}
                     href={link.href}
-                    className="rounded-md px-2 py-2 text-sm hover:bg-stone-100"
+                    className="rounded-[var(--sf-radius)] px-2 py-2 text-sm hover:bg-[var(--sf-paper-deep)]"
                   >
                     {link.label}
                   </Link>
@@ -163,21 +171,10 @@ export default async function StorefrontLayout({
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-10">
-        {children}
-      </main>
+      <main className="sf-container w-full flex-1 py-10">{children}</main>
 
-      <footer className="border-t border-current/10">
-        <div className="mx-auto flex max-w-6xl flex-wrap justify-between gap-4 px-4 py-8 text-sm opacity-70">
-          <p>
-            © {store.name} · Questions?{" "}
-            <a href={`mailto:${store.contactEmail}`} className="underline">
-              {store.contactEmail}
-            </a>
-          </p>
-          <p>Powered by Storefront Studio</p>
-        </div>
-      </footer>
+      <RevealOnScroll />
+      <StorefrontFooter store={store} base={base} collections={collections} />
     </div>
   );
 }

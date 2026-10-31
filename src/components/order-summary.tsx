@@ -28,7 +28,7 @@ export function OrderSummary({
   const money = (cents: number) => formatMoney(cents, currency);
   return (
     <div className="text-sm">
-      <ul className="divide-y divide-current/10">
+      <ul className="space-y-1">
         {items.map((item) => (
           <li key={item.id} className="flex justify-between gap-4 py-2">
             <span>
@@ -41,7 +41,7 @@ export function OrderSummary({
           </li>
         ))}
       </ul>
-      <dl className="mt-3 space-y-1 border-t border-current/10 pt-3">
+      <dl className="mt-5 space-y-1">
         <div className="flex justify-between">
           <dt className="opacity-70">Subtotal</dt>
           <dd>{money(subtotalCents)}</dd>

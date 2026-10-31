@@ -1,0 +1,92 @@
+/* Classic storefront theme: the homepage is built like the printed label and
+   stationery of a small maker. Shapes are filled paper panels with real
+   edges (scallops, perforations), never outlined boxes. */
+
+.classic-hero {
+  height: 100svh;
+  view-timeline-name: --classic-hero;
+}
+@media (min-width: 768px) and (prefers-reduced-motion: no-preference) {
+  /* Taller than the screen on desktop so the label card has room to shrink
+     while the photograph holds still (see .classic-label below). */
+  .classic-hero {
+    height: 160svh;
+  }
+}
+
+.classic-hero__stage {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  overflow: hidden;
+}
+
+.classic-hero__photo {
+  position: absolute;
+  inset: 0;
+  object-fit: cover;
+  filter: brightness(0.62);
+}
+
+/* A row of round perforation dots, like a tear-off line on a ticket. */
+.classic-perforation {
+  border-top: 5px dotted currentColor;
+  opacity: 0.55;
+}
+
+/* The scalloped edge of a printed sheet: a row of half circles in the
+   sheet's colour sitting just outside it (drawn by <Scallops />). */
+.classic-scallops {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 14px;
+}
+.classic-scallops--top {
+  top: -13px;
+  transform: rotate(180deg);
+}
+.classic-scallops--bottom {
+  bottom: -13px;
+}
+
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) and (min-width: 768px) {
+    /* The signature move: as the visitor scrolls past the hero, the label
+       shrinks towards the bottom-left corner and rests there as a stub,
+       while the photograph stays put. Pure CSS, driven by scroll position. */
+    .classic-label {
+      animation: classic-label-shrink linear both;
+      animation-timeline: --classic-hero;
+      animation-range: contain 0% contain 100%;
+      transform-origin: 0% 100%;
+    }
+  }
+}
+
+@keyframes classic-label-shrink {
+  0%,
+  12% {
+    transform: none;
+  }
+  100% {
+    transform: translate(-18vw, 14svh) scale(0.42);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* The one moving picture: the hero photograph drifts slowly, like light
+     moving across the beans. */
+  .classic-hero__photo {
+    animation: classic-drift 24s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes classic-drift {
+  from {
+    transform: scale(1.02) translate(0, 0);
+  }
+  to {
+    transform: scale(1.1) translate(-1.5%, -1%);
+  }
+}
