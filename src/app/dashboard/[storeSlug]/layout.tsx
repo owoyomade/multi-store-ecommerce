@@ -27,6 +27,18 @@ export default async function StoreDashboardLayout({
           },
         ]
       : []),
+    ...(roleHasPermission(context.role, "inventory:adjust")
+      ? [{ href: `/dashboard/${store.slug}/inventory`, label: "Inventory" }]
+      : []),
+    ...(roleHasPermission(context.role, "discounts:manage")
+      ? [{ href: `/dashboard/${store.slug}/discounts`, label: "Discounts" }]
+      : []),
+    ...(roleHasPermission(context.role, "reports:view")
+      ? [{ href: `/dashboard/${store.slug}/activity`, label: "Activity" }]
+      : []),
+    ...(roleHasPermission(context.role, "staff:manage")
+      ? [{ href: `/dashboard/${store.slug}/staff`, label: "Staff" }]
+      : []),
     ...(roleHasPermission(context.role, "store:settings")
       ? [
           { href: `/dashboard/${store.slug}/homepage`, label: "Homepage" },

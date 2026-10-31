@@ -23,6 +23,16 @@ const STATUSES: OrderStatus[] = [
   "REFUNDED",
 ];
 
+/** The last 30 days, today included, as YYYY-MM-DD values for date inputs. */
+function defaultExportRange() {
+  const day = (time: number) => new Date(time).toISOString().slice(0, 10);
+  const now = Date.now();
+  return {
+    exportFrom: day(now - 29 * 24 * 60 * 60 * 1000),
+    exportTo: day(now),
+  };
+}
+
 export default async function OrdersPage({
   params,
   searchParams,
@@ -44,10 +54,44 @@ export default async function OrdersPage({
     page: pageParam(query.page),
   });
   const basePath = `/dashboard/${storeSlug}/orders`;
+  const canExport = roleHasPermission(context.role, "reports:view");
+  const { exportFrom, exportTo } = defaultExportRange();
 
   return (
     <div className="max-w-5xl">
       <h1 className="mb-6 text-2xl font-semibold">Orders</h1>
+      {canExport && (
+        // A plain GET form: the browser downloads the file the route returns.
+        <form
+          action={`${basePath}/export`}
+          className="mb-6 flex flex-wrap items-end gap-3 rounded-xl border border-stone-200 bg-white p-4 text-sm"
+        >
+          <label className="space-y-1">
+            <span className="block font-medium">From</span>
+            <input
+              type="date"
+              name="from"
+              defaultValue={exportFrom}
+              className="rounded-md border border-stone-300 px-3 py-2"
+            />
+          </label>
+          <label className="space-y-1">
+            <span className="block font-medium">To</span>
+            <input
+              type="date"
+              name="to"
+              defaultValue={exportTo}
+              className="rounded-md border border-stone-300 px-3 py-2"
+            />
+          </label>
+          <button type="submit" className={buttonClasses("secondary")}>
+            Download CSV
+          </button>
+          <span className="text-stone-500">
+            Paid, shipped, cancelled and refunded orders. Dates are UTC.
+          </span>
+        </form>
+      )}
       <form className="mb-4 flex gap-2">
         <label htmlFor="order-status" className="sr-only">
           Status

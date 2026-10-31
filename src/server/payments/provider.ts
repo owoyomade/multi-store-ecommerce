@@ -14,6 +14,8 @@ export type CreateCheckoutInput = {
   currency: string;
   customerEmail: string;
   lines: CheckoutLine[];
+  /** Taken off the order total at the provider, e.g. a discount code. */
+  discount: { label: string; amountCents: number } | null;
   successUrl: string;
   cancelUrl: string;
   expiresAt: Date;
@@ -44,6 +46,15 @@ export type PaymentWebhookEvent =
 export interface PaymentProvider {
   readonly name: string;
   createCheckoutSession(input: CreateCheckoutInput): Promise<CheckoutSession>;
+  /**
+   * Refunds part or all of a captured payment. The idempotency key makes a
+   * retried call (after a timeout, say) refund once, not twice.
+   */
+  refund(input: {
+    paymentId: string;
+    amountCents: number;
+    idempotencyKey: string;
+  }): Promise<{ refundId: string }>;
   /** Closes an unpaid session so it can no longer be paid. */
   expireCheckoutSession(sessionId: string): Promise<void>;
   /** Verifies the signature and parses the event. Throws WebhookSignatureError if it's not genuine. */

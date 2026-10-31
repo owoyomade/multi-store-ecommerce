@@ -136,6 +136,7 @@ model Store {
   carts              Cart[]
   customers          Customer[]
   orders             Order[]
+  discounts          Discount[]
 
   @@index([status])
   @@map("stores")
@@ -518,6 +519,10 @@ model Order {
   currency             String      @db.Char(3)
   subtotalCents        Int
   shippingCents        Int
+  // Taken off the subtotal by a discount code; tax is charged on what remains.
+  discountCents        Int         @default(0)
+  // The code as the shopper typed it, kept even if the discount is later deleted.
+  discountCode         String?
   taxCents             Int
   totalCents           Int
   // Snapshot of the address at checkout: { name, line1, line2, city, region, postalCode, country, phone }.
@@ -536,6 +541,10 @@ model Order {
   items         OrderItem[]
   statusHistory OrderStatusHistory[]
   payments      Payment[]
+  shipments     Shipment[]
+  refunds       Refund[]
+  notes         OrderNote[]
+  redemption    DiscountRedemption?
 
   @@unique([storeId, orderNumber])
   @@index([storeId, status, createdAt])
@@ -601,12 +610,15 @@ model Payment {
   // Where the shopper completes payment. Re-used if the same checkout is submitted twice.
   checkoutUrl       String?
   amountCents       Int
+  // Total refunded so far. A refund may never take this above amountCents.
+  refundedCents     Int           @default(0)
   currency          String        @db.Char(3)
   status            PaymentStatus @default(PENDING)
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
-  events PaymentEvent[]
+  events  PaymentEvent[]
+  refunds Refund[]
 
   @@index([orderId])
   @@map("payments")
@@ -637,4 +649,109 @@ model WebhookEvent {
 
   @@unique([provider, providerEventId])
   @@map("webhook_events")
+}
+
+// Fulfilment, refunds and notes
+
+model Shipment {
+  id             String    @id @default(cuid())
+  storeId        String
+  orderId        String
+  order          Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  carrier        String
+  trackingNumber String
+  // Optional link to the carrier's tracking page, shown to the customer.
+  trackingUrl    String?
+  shippedAt      DateTime  @default(now())
+  deliveredAt    DateTime?
+  createdById    String?
+
+  @@index([orderId])
+  @@map("shipments")
+}
+
+enum RefundStatus {
+  SUCCEEDED
+  FAILED
+}
+
+model Refund {
+  id               String       @id @default(cuid())
+  storeId          String
+  orderId          String
+  order            Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  paymentId        String
+  payment          Payment      @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  amountCents      Int
+  reason           String
+  status           RefundStatus
+  providerRefundId String?
+  // Whether the refunded items were put back into stock.
+  restocked        Boolean      @default(false)
+  createdById      String?
+  createdAt        DateTime     @default(now())
+
+  @@index([orderId])
+  @@map("refunds")
+}
+
+// Internal notes on an order, visible to staff only.
+model OrderNote {
+  id           String   @id @default(cuid())
+  storeId      String
+  orderId      String
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  authorUserId String?
+  body         String
+  createdAt    DateTime @default(now())
+
+  @@index([orderId, createdAt])
+  @@map("order_notes")
+}
+
+// Discount codes
+
+enum DiscountKind {
+  PERCENT // value is basis points: 1500 = 15% off
+  FIXED // value is cents off the subtotal
+}
+
+model Discount {
+  id               String       @id @default(cuid())
+  storeId          String
+  store            Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  // Stored in capitals; shoppers can type it in any case.
+  code             String
+  kind             DiscountKind
+  value            Int
+  minSubtotalCents Int?
+  startsAt         DateTime?
+  endsAt           DateTime?
+  // Null means unlimited.
+  usageLimit       Int?
+  // Counts orders that have claimed the code, including unpaid ones still
+  // holding it; an abandoned checkout gives its use back.
+  usageCount       Int          @default(0)
+  active           Boolean      @default(true)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  redemptions DiscountRedemption[]
+
+  @@unique([storeId, code])
+  @@map("discounts")
+}
+
+model DiscountRedemption {
+  id          String   @id @default(cuid())
+  storeId     String
+  discountId  String
+  discount    Discount @relation(fields: [discountId], references: [id], onDelete: Cascade)
+  orderId     String   @unique
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  amountCents Int
+  createdAt   DateTime @default(now())
+
+  @@index([discountId])
+  @@map("discount_redemptions")
 }

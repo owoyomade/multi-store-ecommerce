@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { randomUUID } from "node:crypto";
 import { OrderSummary } from "@/components/order-summary";
+import { firstParam } from "@/lib/search-params";
 import { getCurrentUser } from "@/server/auth/session";
 import { getPaymentProvider } from "@/server/payments";
 import { getCheckoutPreview } from "@/server/services/checkout";
@@ -18,11 +19,18 @@ export const metadata: Metadata = {
 
 export default async function CheckoutPage({
   params,
+  searchParams,
 }: PageProps<"/s/[storeSlug]/checkout">) {
   const { storeSlug } = await params;
   const store = await loadStorefront(storeSlug);
+  // The code arrives from the "Apply" form below as ?discount=CODE, so the
+  // totals can be shown with it before the shopper pays.
+  const discountCode = firstParam((await searchParams).discount) ?? "";
   const [preview, base, viewer] = await Promise.all([
-    getCheckoutPreview(store.id, await readCartToken(store.id)),
+    getCheckoutPreview(store.id, await readCartToken(store.id), {
+      discountCode,
+      currency: store.currency,
+    }),
     storefrontBasePath(storeSlug),
     getCurrentUser(),
   ]);
@@ -97,6 +105,7 @@ export default async function CheckoutPage({
           )}
           canSaveAddress={Boolean(viewer)}
           paymentsReady={paymentsReady}
+          discountCode={preview.discount?.code ?? ""}
         />
       </section>
 
@@ -113,8 +122,47 @@ export default async function CheckoutPage({
         <OrderSummary
           currency={store.currency}
           items={preview.lines.map((line) => ({ ...line, id: line.variantId }))}
+          discountCode={preview.discount?.code}
           {...preview.totals}
         />
+        <form method="get" className="mt-6" aria-label="Discount code">
+          <label htmlFor="discount-code" className="text-sm">
+            Discount code
+          </label>
+          <div className="mt-1 flex gap-2">
+            <input
+              id="discount-code"
+              name="discount"
+              defaultValue={discountCode}
+              autoComplete="off"
+              aria-invalid={preview.discountError ? true : undefined}
+              aria-describedby={
+                preview.discountError ? "discount-error" : undefined
+              }
+              className="w-full rounded-[var(--sf-radius)] border border-current/25 bg-white px-3 py-2 text-stone-900 uppercase"
+            />
+            <button
+              type="submit"
+              className="rounded-[var(--sf-radius)] bg-[var(--sf-primary)] px-4 py-2 text-[var(--sf-on-primary)]"
+            >
+              Apply
+            </button>
+          </div>
+          {preview.discountError && (
+            <p
+              id="discount-error"
+              role="alert"
+              className="mt-2 text-sm text-red-800"
+            >
+              {preview.discountError}
+            </p>
+          )}
+          {preview.discount && (
+            <p role="status" className="mt-2 text-sm">
+              {preview.discount.code} applied.
+            </p>
+          )}
+        </form>
         <p className="mt-4 text-xs opacity-60">
           Tax and shipping use simple demo rates and aren&apos;t real tax
           advice.

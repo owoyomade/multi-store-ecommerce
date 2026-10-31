@@ -11,6 +11,8 @@ type OrderSummaryProps = {
     lineTotalCents: number;
   }[];
   subtotalCents: number;
+  discountCents?: number;
+  discountCode?: string | null;
   shippingCents: number;
   taxCents: number;
   totalCents: number;
@@ -21,6 +23,8 @@ export function OrderSummary({
   currency,
   items,
   subtotalCents,
+  discountCents = 0,
+  discountCode,
   shippingCents,
   taxCents,
   totalCents,
@@ -46,6 +50,14 @@ export function OrderSummary({
           <dt className="opacity-70">Subtotal</dt>
           <dd>{money(subtotalCents)}</dd>
         </div>
+        {discountCents > 0 && (
+          <div className="flex justify-between">
+            <dt className="opacity-70">
+              Discount{discountCode ? ` (${discountCode})` : ""}
+            </dt>
+            <dd>−{money(discountCents)}</dd>
+          </div>
+        )}
         <div className="flex justify-between">
           <dt className="opacity-70">Shipping</dt>
           <dd>{shippingCents === 0 ? "Free" : money(shippingCents)}</dd>

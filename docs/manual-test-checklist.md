@@ -71,6 +71,25 @@ Run through this after setup (see README). Each item says what to do and what yo
 - [ ] **Declined card.** Use 4000 0000 0000 0002: Stripe shows the decline and no order is marked paid.
 - [ ] **Signed-in shopper.** Sign in, check out with "Save this address" ticked. The order appears under Account, and the address is offered at your next checkout.
 
+## Phase 4 — Merchant operations
+
+Sign in as `maya@northbrew.example.test` unless a step says otherwise. Stripe test keys are needed for refunds.
+
+- [ ] **Overview.** The overview shows last-30-day net sales, orders, average order, refunds, best sellers and a "Running low" list.
+- [ ] **Fulfil.** Open a paid order. "Mark as processing", then fill in a carrier and tracking number and "Mark as shipped": the history names you, and Mailpit has a "has shipped" email with the tracking number. Then "Mark as delivered".
+- [ ] **Unsafe tracking link.** Enter `javascript:alert(1)` as the tracking link: it's rejected.
+- [ ] **Partial refund.** Refund 10.00 with a reason. The payment line shows "$10.00 refunded", the refund appears in the Stripe test dashboard, and the form now offers only the remaining amount. Refund the rest: the order becomes Refunded.
+- [ ] **Cancel.** On another paid, unshipped order, cancel with a reason: the customer is refunded in full, the stock comes back, and the order is Cancelled. A shipped order offers no Cancel.
+- [ ] **Notes.** Add an internal note: it shows your name and time. Notes never appear on the shopper's account page.
+- [ ] **Discounts.** Create `welcome10` at 10% off with 100 uses: it's listed as WELCOME10. At checkout, apply `welcome10`: a Discount line appears, tax is worked out on the lower amount, and Stripe charges the discounted total. The code's "Used" count goes up after paying. Pause it: checkout says the code isn't recognised.
+- [ ] **Inventory.** Under Inventory, "Low stock" lists items with 5 or fewer available. Choose Burr Hand Grinder, record +12 "Received stock" with a note: the history shows +12, the note and your name. Try −100: you get an error and nothing changes.
+- [ ] **Staff invite.** Under Staff, invite `new.person@example.test` as Fulfillment agent. In Mailpit, open the invite link in a private window, create an account with that address and verify it, then open the link again and accept: you land in the Northbrew dashboard with only Orders. Opening the link a second time says it can't be used.
+- [ ] **Wrong account.** Open an invite link while signed in as someone else: it tells you which address to use and doesn't let you join.
+- [ ] **Last owner.** Try to change your own role to Manager or click "Leave store": "A store needs at least one owner."
+- [ ] **Roles.** As `sam@example.test` at Lumen (fulfillment agent), an order page shows fulfilment buttons but no Refund or Cancel, and there are no Inventory, Discounts, Activity or Staff links.
+- [ ] **CSV export.** On Orders, download the CSV and open it in a spreadsheet: one row per order. A customer named `=1+1` shows as text, not 2.
+- [ ] **Activity.** Activity lists what you just did (shipped, refunded, invited, adjusted stock) with names and times.
+
 ### Automated checks
 
 ```bash

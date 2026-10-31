@@ -11,6 +11,11 @@ import type {
   PaymentProvider,
   PaymentWebhookEvent,
 } from "../payments/provider";
+import {
+  claimDiscountUse,
+  findUsableDiscount,
+  releaseDiscountUse,
+} from "./discounts";
 import { getDefaultLocationId } from "./inventory";
 
 // Stripe requires a checkout session to stay open for at least 30 minutes.
@@ -23,6 +28,7 @@ type Transaction = Prisma.TransactionClient;
 
 export type Totals = {
   subtotalCents: number;
+  discountCents: number;
   shippingCents: number;
   taxCents: number;
   totalCents: number;
@@ -40,21 +46,24 @@ export function calculateTotals(
     flatShippingCents: number;
     freeShippingOverCents: number | null;
   },
+  discountCents = 0,
 ): Totals {
+  // Shipping and tax are worked out on what the shopper pays for the goods,
+  // i.e. after any discount.
+  const goodsCents = subtotalCents - discountCents;
   const freeShipping =
     settings.freeShippingOverCents !== null &&
-    subtotalCents >= settings.freeShippingOverCents;
+    goodsCents >= settings.freeShippingOverCents;
   const shippingCents =
     subtotalCents === 0 || freeShipping ? 0 : settings.flatShippingCents;
   // Basis points: 1300 bps = 13%. Rounded to the nearest cent.
-  const taxCents = Math.round(
-    (subtotalCents * settings.demoTaxRateBps) / 10_000,
-  );
+  const taxCents = Math.round((goodsCents * settings.demoTaxRateBps) / 10_000);
   return {
     subtotalCents,
+    discountCents,
     shippingCents,
     taxCents,
-    totalCents: subtotalCents + shippingCents + taxCents,
+    totalCents: goodsCents + shippingCents + taxCents,
   };
 }
 
@@ -127,13 +136,42 @@ async function loadCartForCheckout(storeId: string, cartToken: string | null) {
 export async function getCheckoutPreview(
   storeId: string,
   cartToken: string | null,
+  options: { discountCode?: string; currency: string },
 ) {
   const cart = await loadCartForCheckout(storeId, cartToken);
   const lines = cart?.lines.filter((line) => line.purchasable) ?? [];
   const subtotal = lines.reduce((sum, line) => sum + line.lineTotalCents, 0);
+
+  // A code that can't be used is reported, not thrown: the shopper can
+  // still check out without it.
+  let discount: { code: string; amountCents: number } | null = null;
+  let discountError: string | null = null;
+  if (options.discountCode) {
+    try {
+      const usable = await findUsableDiscount(
+        storeId,
+        options.discountCode,
+        subtotal,
+        options.currency,
+      );
+      discount = {
+        code: usable.discount.code,
+        amountCents: usable.amountCents,
+      };
+    } catch (error) {
+      if (!(error instanceof RuleViolationError)) throw error;
+      discountError = error.message;
+    }
+  }
   return {
     lines,
-    totals: calculateTotals(subtotal, await loadSettings(storeId)),
+    totals: calculateTotals(
+      subtotal,
+      await loadSettings(storeId),
+      discount?.amountCents ?? 0,
+    ),
+    discount,
+    discountError,
   };
 }
 
@@ -183,10 +221,11 @@ async function releaseReservations(
  * Cancels an order that is still waiting for payment and gives its reserved
  * stock back. Safe to call more than once: only a PENDING order changes.
  */
-async function cancelPendingOrder(
+export async function cancelPendingOrder(
   tx: Transaction,
   orderId: string,
   note: string,
+  actorUserId: string | null = null,
 ): Promise<boolean> {
   const order = await tx.order.findUnique({
     where: { id: orderId },
@@ -200,12 +239,19 @@ async function cancelPendingOrder(
   if (count === 0) return false;
 
   await releaseReservations(tx, orderId, order.storeId);
+  await releaseDiscountUse(tx, orderId);
   await tx.payment.updateMany({
     where: { orderId, status: "PENDING" },
     data: { status: "EXPIRED" },
   });
   await tx.orderStatusHistory.create({
-    data: { orderId, fromStatus: "PENDING", toStatus: "CANCELLED", note },
+    data: {
+      orderId,
+      fromStatus: "PENDING",
+      toStatus: "CANCELLED",
+      note,
+      actorUserId,
+    },
   });
   return true;
 }
@@ -303,9 +349,22 @@ export async function startCheckout(
   }
 
   const settings = await loadSettings(store.id);
+  const subtotalCents = cart.lines.reduce(
+    (sum, line) => sum + line.lineTotalCents,
+    0,
+  );
+  const discount = input.discountCode
+    ? await findUsableDiscount(
+        store.id,
+        input.discountCode,
+        subtotalCents,
+        store.currency,
+      )
+    : null;
   const totals = calculateTotals(
-    cart.lines.reduce((sum, line) => sum + line.lineTotalCents, 0),
+    subtotalCents,
     settings,
+    discount?.amountCents ?? 0,
   );
   const reservationExpiresAt = new Date(
     Date.now() + RESERVATION_MINUTES * 60_000,
@@ -354,10 +413,13 @@ export async function startCheckout(
       }
     }
 
-    return tx.order.create({
+    if (discount) await claimDiscountUse(tx, discount.discount.id);
+
+    const created = await tx.order.create({
       data: {
         storeId: store.id,
         orderNumber,
+        discountCode: discount?.discount.code ?? null,
         customerId: customer.id,
         email: input.email.toLowerCase(),
         currency: store.currency,
@@ -388,6 +450,17 @@ export async function startCheckout(
       },
       select: { id: true, orderNumber: true },
     });
+    if (discount) {
+      await tx.discountRedemption.create({
+        data: {
+          storeId: store.id,
+          discountId: discount.discount.id,
+          orderId: created.id,
+          amountCents: discount.amountCents,
+        },
+      });
+    }
+    return created;
   });
 
   // The provider call happens outside the database transaction so we never
@@ -427,6 +500,9 @@ export async function startCheckout(
             ]
           : []),
       ],
+      discount: discount
+        ? { label: discount.discount.code, amountCents: discount.amountCents }
+        : null,
       successUrl: `${storefrontUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
       cancelUrl: `${storefrontUrl}/checkout/cancelled?session_id={CHECKOUT_SESSION_ID}`,
       expiresAt: new Date(Date.now() + CHECKOUT_SESSION_MINUTES * 60_000),

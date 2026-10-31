@@ -27,6 +27,21 @@ export class StripePaymentProvider implements PaymentProvider {
   async createCheckoutSession(
     input: CreateCheckoutInput,
   ): Promise<CheckoutSession> {
+    // Stripe has no negative line items, so a discount becomes a one-time
+    // coupon for exactly the amount our server calculated.
+    const coupon = input.discount
+      ? await this.stripe.coupons.create(
+          {
+            amount_off: input.discount.amountCents,
+            currency: input.currency.toLowerCase(),
+            duration: "once",
+            name: input.discount.label,
+            max_redemptions: 1,
+          },
+          { idempotencyKey: `${input.idempotencyKey}-coupon` },
+        )
+      : null;
+
     const session = await this.stripe.checkout.sessions.create(
       {
         mode: "payment",
@@ -42,6 +57,7 @@ export class StripePaymentProvider implements PaymentProvider {
         })),
         success_url: input.successUrl,
         cancel_url: input.cancelUrl,
+        ...(coupon ? { discounts: [{ coupon: coupon.id }] } : {}),
         expires_at: Math.floor(input.expiresAt.getTime() / 1000),
         // Lets the webhook find the order even if our own lookup fails.
         metadata: { orderId: input.orderId, storeId: input.storeId },
@@ -53,6 +69,18 @@ export class StripePaymentProvider implements PaymentProvider {
     );
     if (!session.url) throw new Error("Stripe did not return a checkout URL");
     return { sessionId: session.id, url: session.url };
+  }
+
+  async refund(input: {
+    paymentId: string;
+    amountCents: number;
+    idempotencyKey: string;
+  }) {
+    const refund = await this.stripe.refunds.create(
+      { payment_intent: input.paymentId, amount: input.amountCents },
+      { idempotencyKey: input.idempotencyKey },
+    );
+    return { refundId: refund.id };
   }
 
   async expireCheckoutSession(sessionId: string): Promise<void> {

@@ -24,6 +24,8 @@ type CheckoutFormProps = {
   savedAddresses: SavedAddress[];
   canSaveAddress: boolean;
   paymentsReady: boolean;
+  /** A code already accepted on this page, sent along with the order. */
+  discountCode: string;
 };
 
 const inputClasses =
@@ -36,6 +38,7 @@ export function CheckoutForm({
   savedAddresses,
   canSaveAddress,
   paymentsReady,
+  discountCode,
 }: CheckoutFormProps) {
   const [state, formAction, pending] = useActionState(
     startCheckoutAction.bind(null, storeSlug, idempotencyKey),
@@ -60,6 +63,7 @@ export function CheckoutForm({
 
   return (
     <form action={formAction} className="space-y-6">
+      <input type="hidden" name="discountCode" value={discountCode} />
       {state.status === "error" && (
         <p
           role="alert"

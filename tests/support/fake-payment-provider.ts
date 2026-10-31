@@ -15,6 +15,12 @@ export class FakePaymentProvider implements PaymentProvider {
   readonly expiredSessionIds: string[] = [];
   failNextCheckout = false;
   failExpire = false;
+  failNextRefund = false;
+  readonly refunds: {
+    paymentId: string;
+    amountCents: number;
+    idempotencyKey: string;
+  }[] = [];
   private eventCounter = 0;
 
   async createCheckoutSession(
@@ -30,6 +36,19 @@ export class FakePaymentProvider implements PaymentProvider {
     };
     this.sessions.push({ ...input, ...session });
     return session;
+  }
+
+  async refund(input: {
+    paymentId: string;
+    amountCents: number;
+    idempotencyKey: string;
+  }) {
+    if (this.failNextRefund) {
+      this.failNextRefund = false;
+      throw new Error("card network unavailable");
+    }
+    this.refunds.push(input);
+    return { refundId: `re_test_${this.refunds.length}` };
   }
 
   async expireCheckoutSession(sessionId: string): Promise<void> {
@@ -58,10 +77,11 @@ export class FakePaymentProvider implements PaymentProvider {
       eventId: `evt_${++this.eventCounter}`,
       sessionId: session.sessionId,
       paymentId: "pi_test_123",
-      amountCents: session.lines.reduce(
-        (sum, line) => sum + line.unitAmountCents * line.quantity,
-        0,
-      ),
+      amountCents:
+        session.lines.reduce(
+          (sum, line) => sum + line.unitAmountCents * line.quantity,
+          0,
+        ) - (session.discount?.amountCents ?? 0),
       currency: session.currency,
       paid: true,
       ...overrides,

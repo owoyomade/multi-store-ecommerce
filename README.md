@@ -2,7 +2,7 @@
 
 A multi-tenant e-commerce platform where merchants create and run several independent online stores from one dashboard. Each store's data is isolated from every other store.
 
-> **Status: Phase 3 (checkout and orders) complete.** Accounts, stores, roles, tenant isolation, catalog, branded storefronts, carts, Stripe test-mode checkout, orders and customer accounts work. Merchant order operations (fulfil, cancel, refund), discounts and staff invites arrive in Phase 4 — see [docs/phase-0-plan.md](docs/phase-0-plan.md).
+> **Status: Phase 4 (merchant operations) complete.** Accounts, stores, roles, tenant isolation, catalog, branded storefronts, carts, Stripe test-mode checkout, orders, customer accounts, order fulfilment and refunds, discount codes, inventory, staff invitations, sales reports and an activity log work. Production hardening and deployment follow in Phases 5–6 — see [docs/phase-0-plan.md](docs/phase-0-plan.md).
 
 ## What works today
 
@@ -46,12 +46,25 @@ A multi-tenant e-commerce platform where merchants create and run several indepe
 - Signed Stripe webhooks mark orders paid; each event is processed once, and the charged amount is checked against the order
 - Order numbers per store (#1001, #1002…), item price/name snapshots, and a status history recording who changed what
 - Order confirmation email; confirmation page; signed-in shoppers get order history and saved addresses
-- Read-only orders list and order detail in the merchant dashboard
+- Discount codes (percent or fixed amount, minimum order, start/end dates, usage limit); the discount comes off before tax and Stripe charges the discounted total
+
+**Running the store (merchant dashboard)**
+
+- Orders: mark as processing, shipped (carrier, tracking number and link; the customer gets a "your order has shipped" email) and delivered. A status can only move forward, and two staff clicking at once can't both succeed
+- Full or partial refunds through Stripe test mode, optionally restocking the items; cancel an unshipped order with an automatic refund and restock
+- Internal order notes, and a history showing which team member did what
+- Discount codes: create, pause and re-activate, with usage counts
+- Inventory: record received stock, returns and corrections with a note; per-item history; low-stock list
+- Staff: invite by email with a role (single-use link, expires in 7 days, only works for the invited, verified address), change roles, remove people; a store can never be left without an owner
+- Overview: last-30-day net sales, orders, average order value, refunds, best sellers and low stock
+- Orders CSV export for any date range, safe against spreadsheet formula injection
+- Activity log of every sensitive change, with who made it
 
 **Security**
 
 - Tenant isolation: staff only ever see stores they belong to; another store's products, variants, collections, images and carts can't be reached by changing IDs (integration tests check each one)
-- Audit log entries for store, product and stock changes
+- Audit log entries for store, product, stock, order, discount and staff changes
+- Refunds reserve the amount in the database before calling Stripe, so two refunds at once can't exceed what was paid
 - Health endpoint at `/api/health`
 
 ## Tech stack
@@ -178,10 +191,11 @@ docs/                      design plan and manual test checklist
 
 Every store-owned row has a `storeId`. Pages and server actions never query store data directly; they call a service function that takes a `StoreContext` (store ID, user ID, role). That context is built on the server from the signed-in user's membership row — a store ID sent by the browser is never trusted. Non-members get a 404, so they can't even confirm a store exists. Integration tests in `tests/integration/store-tenancy.test.ts` check this.
 
-## Known limitations (after Phase 3)
+## Known limitations (after Phase 4)
 
-- Merchants can view orders but can't yet fulfil, cancel or refund them from the dashboard (Phase 4)
-- No discount codes yet (Phase 4)
+- One shipment per order (no split shipments), and refunds are by amount rather than per item
+- Discount start and end times use the server's time zone, and codes apply to the whole order (not to specific products or collections)
+- Order CSV dates are in UTC
 - All stores share one Stripe test account. Before real merchants, each store needs its own connected account (Stripe Connect), plus verification and legal terms
 - Tax and shipping are simple per-store demo rates, not real tax calculation
 - Shopper accounts work on `/s/<store>/...` paths; on store subdomains shoppers check out as guests (the sign-in cookie belongs to the main domain)

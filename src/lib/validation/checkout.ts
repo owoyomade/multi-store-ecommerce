@@ -20,6 +20,8 @@ export const checkoutSchema = z.object({
   email: z.email("Enter a valid email").max(200),
   address: shippingAddressSchema,
   saveAddress: z.boolean().default(false),
+  // Checked against the store's discounts on the server; empty means none.
+  discountCode: z.string().trim().max(30).default(""),
 });
 
 export type CheckoutInput = z.input<typeof checkoutSchema>;

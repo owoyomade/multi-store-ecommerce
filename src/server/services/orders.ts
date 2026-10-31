@@ -14,6 +14,8 @@ const orderDetailSelect = {
   email: true,
   currency: true,
   subtotalCents: true,
+  discountCents: true,
+  discountCode: true,
   shippingCents: true,
   taxCents: true,
   totalCents: true,
@@ -173,12 +175,57 @@ export async function getOrderForDashboard(
           provider: true,
           status: true,
           amountCents: true,
+          refundedCents: true,
           providerPaymentId: true,
           createdAt: true,
         },
       },
+      shipments: {
+        orderBy: { shippedAt: "asc" },
+        select: {
+          id: true,
+          carrier: true,
+          trackingNumber: true,
+          trackingUrl: true,
+          shippedAt: true,
+          deliveredAt: true,
+        },
+      },
+      refunds: {
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          amountCents: true,
+          reason: true,
+          status: true,
+          restocked: true,
+          createdAt: true,
+        },
+      },
+      notes: {
+        orderBy: { createdAt: "asc" },
+        select: { id: true, body: true, createdAt: true, authorUserId: true },
+      },
     },
   });
   if (!order) throw new NotFoundError("Order");
-  return withAddress(order);
+
+  // Show staff names rather than IDs in the history and notes.
+  const actorIds = [
+    ...new Set(
+      [
+        ...order.statusHistory.map((entry) => entry.actorUserId),
+        ...order.notes.map((note) => note.authorUserId),
+      ].filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const actors = await db.user.findMany({
+    where: { id: { in: actorIds } },
+    select: { id: true, name: true },
+  });
+  const nameOf = new Map(actors.map((actor) => [actor.id, actor.name]));
+  return {
+    ...withAddress(order),
+    staffNames: Object.fromEntries(nameOf) as Record<string, string>,
+  };
 }

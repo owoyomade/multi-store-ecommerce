@@ -41,6 +41,7 @@ export async function startCheckoutAction(
       input: {
         email: field(formData, "email"),
         saveAddress: formData.get("saveAddress") === "on",
+        discountCode: field(formData, "discountCode"),
         address: {
           name: field(formData, "name"),
           line1: field(formData, "line1"),
