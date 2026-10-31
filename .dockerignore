@@ -1,0 +1,16 @@
+# Keep secrets, local data and build leftovers out of the image.
+.env*
+!.env.example
+.git
+.github
+.claude
+.taste-skill
+CLAUDE.md
+AGENTS.md
+node_modules
+.next
+storage
+backups
+test-results
+playwright-report
+coverage

@@ -90,7 +90,7 @@ export function PictureSlotForm({
                 // A hint for the file picker only; the server checks the real file contents.
                 accept="image/jpeg,image/png,image/webp,image/avif"
                 required={!picture}
-                hint="JPEG, PNG, WebP or AVIF, up to 5 MB."
+                hint="JPEG, PNG, WebP or AVIF, up to 4 MB."
               />
               <TextField
                 label="Alt text"

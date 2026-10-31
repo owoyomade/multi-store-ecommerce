@@ -1,6 +1,7 @@
 import sharp from "sharp";
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/server/db";
+import { MAX_UPLOAD_BYTES } from "@/server/storage/images";
 import {
   FieldConflictError,
   NotFoundError,
@@ -260,13 +261,13 @@ describe("addProductImage", () => {
     ).rejects.toThrow("Upload a JPEG, PNG, WebP or AVIF image.");
   });
 
-  it("rejects files over 5 MB before decoding them", async () => {
+  it("rejects files over 4 MB before decoding them", async () => {
     const { contextA } = await twoStoresWithOwners();
     const product = await createProduct(contextA, productInput());
-    const oversized = Buffer.alloc(5 * 1024 * 1024 + 1);
+    const oversized = Buffer.alloc(MAX_UPLOAD_BYTES + 1);
 
     await expect(
       addProductImage(contextA, product.id, { bytes: oversized, altText: "" }),
-    ).rejects.toThrow("Images must be 5 MB or smaller.");
+    ).rejects.toThrow("Images must be 4 MB or smaller.");
   });
 });

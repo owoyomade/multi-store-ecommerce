@@ -36,7 +36,7 @@ export function ImageUploadForm({
           // A hint for the file picker only; the server checks the real file contents.
           accept="image/jpeg,image/png,image/webp,image/avif"
           required
-          hint="JPEG, PNG, WebP or AVIF, up to 5 MB."
+          hint="JPEG, PNG, WebP or AVIF, up to 4 MB."
           errors={fieldErrorsOf(state, "image")}
         />
         <TextField

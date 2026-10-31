@@ -33,13 +33,15 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   // Don't advertise the framework in an X-Powered-By header.
   poweredByHeader: false,
+  // The Docker image needs a self-contained server; Vercel doesn't.
+  output: process.env.NEXT_OUTPUT_STANDALONE === "1" ? "standalone" : undefined,
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
   experimental: {
     serverActions: {
-      // Product images may be up to 5 MB; leave room for the form's own overhead.
-      bodySizeLimit: "6mb",
+      // Images may be up to 4 MB, and Vercel's hard limit is 4.5 MB.
+      bodySizeLimit: "4.5mb",
     },
   },
   images: {

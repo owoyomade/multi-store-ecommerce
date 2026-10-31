@@ -19,7 +19,7 @@ A multi-tenant e-commerce platform where merchants create and run several indepe
 - Products with up to two options (e.g. Size × Colour); a variant is created for every combination
 - Per-variant SKU, price, compare-at ("was") price and stock, edited in one table
 - Draft / Published / Archived status, SEO title and description
-- Image uploads (JPEG, PNG, WebP, AVIF up to 5 MB): every file is decoded and re-encoded as WebP, which rejects disguised files and strips metadata such as GPS location
+- Image uploads (JPEG, PNG, WebP, AVIF up to 4 MB): every file is decoded and re-encoded as WebP, which rejects disguised files and strips metadata such as GPS location
 - Collections to group products
 - Stock changes are recorded in an inventory ledger
 

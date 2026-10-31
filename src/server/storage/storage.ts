@@ -1,10 +1,18 @@
 import "server-only";
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  NoSuchKey,
+  PutObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 /**
- * Where uploaded files live. Development uses the local disk; Phase 6 adds an
- * S3-compatible driver for hosting, behind this same interface.
+ * Where uploaded files live: the local disk in development, an S3-compatible
+ * bucket (Cloudflare R2, AWS S3, MinIO) when hosted. Hosting platforms like
+ * Vercel throw away anything written to their disk, so they need the bucket.
  */
 export interface StorageDriver {
   put(key: string, data: Buffer): Promise<void>;
@@ -50,10 +58,77 @@ class LocalDiskStorage implements StorageDriver {
   }
 }
 
-// The upload folder is runtime data, not code, so the bundler is told not to
-// trace it (otherwise it would copy the whole project into the server build).
-export const storage: StorageDriver = new LocalDiskStorage(
-  path.resolve(
-    /* turbopackIgnore: true */ process.env.STORAGE_DIR ?? "storage",
-  ),
-);
+/**
+ * The bucket stays private: shoppers never get a bucket URL. Images are served
+ * through /media, which only hands out processed product and storefront
+ * images, so nothing else in the bucket can be listed or fetched.
+ */
+export class S3Storage implements StorageDriver {
+  constructor(
+    private readonly client: S3Client,
+    private readonly bucket: string,
+  ) {}
+
+  async put(key: string, data: Buffer): Promise<void> {
+    assertSafeStorageKey(key);
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Body: data,
+        ContentType: "image/webp",
+      }),
+    );
+  }
+
+  async get(key: string): Promise<Buffer | null> {
+    assertSafeStorageKey(key);
+    try {
+      const object = await this.client.send(
+        new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+      );
+      if (!object.Body) return null;
+      return Buffer.from(await object.Body.transformToByteArray());
+    } catch (error) {
+      if (error instanceof NoSuchKey) return null;
+      throw error;
+    }
+  }
+
+  async delete(key: string): Promise<void> {
+    assertSafeStorageKey(key);
+    await this.client.send(
+      new DeleteObjectCommand({ Bucket: this.bucket, Key: key }),
+    );
+  }
+}
+
+function requiredSetting(name: string): string {
+  const value = process.env[name]?.trim();
+  if (!value) throw new Error(`${name} must be set when STORAGE_DRIVER=s3`);
+  return value;
+}
+
+function createStorage(): StorageDriver {
+  if (process.env.STORAGE_DRIVER === "s3") {
+    const client = new S3Client({
+      endpoint: requiredSetting("S3_ENDPOINT"),
+      // R2 ignores the region, but the SDK needs one; "auto" is R2's convention.
+      region: process.env.S3_REGION?.trim() || "auto",
+      credentials: {
+        accessKeyId: requiredSetting("S3_ACCESS_KEY_ID"),
+        secretAccessKey: requiredSetting("S3_SECRET_ACCESS_KEY"),
+      },
+    });
+    return new S3Storage(client, requiredSetting("S3_BUCKET"));
+  }
+  // The upload folder is runtime data, not code, so the bundler is told not
+  // to trace it (otherwise it would copy the whole project into the build).
+  return new LocalDiskStorage(
+    path.resolve(
+      /* turbopackIgnore: true */ process.env.STORAGE_DIR ?? "storage",
+    ),
+  );
+}
+
+export const storage: StorageDriver = createStorage();

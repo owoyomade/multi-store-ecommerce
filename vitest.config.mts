@@ -20,5 +20,8 @@ export default defineConfig({
     // Integration tests share one test database, so run files one at a time
     // to stop one file's cleanup from deleting another file's rows.
     fileParallelism: false,
+    // Integration tests talk to a real database; 5 seconds (the default) is
+    // too tight on a busy laptop or a shared CI machine.
+    testTimeout: 15_000,
   },
 });

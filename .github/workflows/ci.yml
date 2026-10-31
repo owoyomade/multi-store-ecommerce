@@ -29,6 +29,10 @@ jobs:
       mail:
         image: axllent/mailpit:v1.27
         ports: ["1030:1025", "8030:8025"]
+      # S3 emulator, for the hosted image-storage driver's test.
+      s3:
+        image: adobe/s3mock:4.4.0
+        ports: ["9010:9090"]
 
     # Throwaway values for the CI machine only. No real secrets are needed:
     # payments use the browser-test stand-in, never Stripe.
@@ -42,6 +46,7 @@ jobs:
       EMAIL_FROM: "CI <ci@example.test>"
       SEED_DEMO_PASSWORD: ci-demo-password
       STORAGE_DIR: storage
+      S3_TEST_ENDPOINT: http://localhost:9010
 
     steps:
       - uses: actions/checkout@v4

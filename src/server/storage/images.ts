@@ -2,7 +2,9 @@ import "server-only";
 import sharp from "sharp";
 import { RuleViolationError } from "../errors";
 
-export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+// Vercel refuses request bodies over 4.5 MB, so 4 MB leaves room for the
+// rest of the form.
+export const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 const ACCEPTED_FORMATS = new Set(["jpeg", "png", "webp", "avif"]);
 const MAX_DIMENSION = 2000;
 
@@ -24,7 +26,7 @@ export async function processUploadedImage(
     throw new RuleViolationError("The file is empty.");
   }
   if (upload.byteLength > MAX_UPLOAD_BYTES) {
-    throw new RuleViolationError("Images must be 5 MB or smaller.");
+    throw new RuleViolationError("Images must be 4 MB or smaller.");
   }
 
   // limitInputPixels stops "decompression bombs": tiny files that expand to

@@ -8,6 +8,9 @@ export default defineConfig({
     seed: "tsx --conditions=react-server prisma/seed.ts",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    // Migrations need a direct connection. Neon's pooled address (used by the
+    // running app as DATABASE_URL) can't hold the locks migrations take, so
+    // hosted setups also set DIRECT_URL. Locally the two are the same.
+    url: process.env["DIRECT_URL"] || process.env["DATABASE_URL"],
   },
 });
