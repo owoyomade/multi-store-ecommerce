@@ -52,6 +52,7 @@ Run through this after setup (see README). Each item says what to do and what yo
 - [ ] **Publish.** Set Visibility to Published, save, then "View on storefront".
 - [ ] **Collections.** Create a collection, tick it on a product's page, and check it appears in the storefront header.
 - [ ] **Publish the store.** Create a new store: its storefront is a preview only you can see (amber banner). Click "Publish store" on the overview; signed out, the storefront is now visible.
+- [ ] **Homepage editor.** Under Homepage, change the summary and a fact and save: the storefront shows them. Write a letter without "Signed by": you get an error next to that field and your text is kept. Upload a new footer picture with alt text: it replaces the old one on the storefront. Remove a picture: that part of the page disappears. Sam (manager at Northbrew) gets "Only the store owner can edit the homepage."
 - [ ] **Roles.** Sign in as `sam@example.test`: at Lumen (fulfillment agent) there are no Products or Collections links, and `/dashboard/lumen/products` says your role doesn't include managing products.
 
 ## Phase 3 — Checkout and orders

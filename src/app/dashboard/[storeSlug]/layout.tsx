@@ -28,7 +28,10 @@ export default async function StoreDashboardLayout({
         ]
       : []),
     ...(roleHasPermission(context.role, "store:settings")
-      ? [{ href: `/dashboard/${store.slug}/settings`, label: "Settings" }]
+      ? [
+          { href: `/dashboard/${store.slug}/homepage`, label: "Homepage" },
+          { href: `/dashboard/${store.slug}/settings`, label: "Settings" },
+        ]
       : []),
   ];
 

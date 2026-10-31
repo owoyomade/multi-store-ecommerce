@@ -27,6 +27,7 @@ A multi-tenant e-commerce platform where merchants create and run several indepe
 
 - **Classic** (demo: Northbrew Coffee): the homepage is built like a maker's printed label. The store's label card sits over a full-screen photograph and shrinks to a stub as you scroll; then one product in full (pick options and add to cart on the spot), the whole catalogue as a printed price list, and the founder's letter on paper.
 - **Bold** (demo: Lumen Studio Apparel): a split stage. One half of the screen is a picture that stays put and slowly crossfades while the other half scrolls through a striped card, the featured product, the founder's letter and the collections set as large poster lines; the footer is half photograph, half menu.
+- Owners edit their homepage under **Dashboard → Homepage**: summary, button label, three facts, the featured product, the founder's letter, and every picture with its alt text, caption and credit (replacing or removing a picture deletes the old file).
 - Both themes are filled from each store's own data (brand colours, tagline, hero picture, facts, featured product, founder's letter, credited pictures). Every part is optional, so a new store still gets a complete homepage from its products alone.
 - Demo pictures come from open museum and archive collections (public domain, CC0 or CC BY) and are credited in each store's footer; their sources are listed in `prisma/seed-assets/*/credits.json`. Product images in the demo are flat illustrations that stand in for product photography.
 
@@ -185,7 +186,7 @@ Every store-owned row has a `storeId`. Pages and server actions never query stor
 - Tax and shipping are simple per-store demo rates, not real tax calculation
 - Shopper accounts work on `/s/<store>/...` paths; on store subdomains shoppers check out as guests (the sign-in cookie belongs to the main domain)
 - Product options are fixed once a product is created; images can't be reordered
-- Homepage content (hero picture, facts, featured product, founder's letter) is stored per store and validated, but there is no dashboard screen to edit it yet; the demo stores get theirs from the seed script. The founder's letters and facts are sample copy.
+- The demo stores' founder's letters and facts are sample copy (owners can change them under Dashboard → Homepage).
 - Storefront pictures can't be video yet
 - Uploads are stored on the local disk (S3-compatible storage arrives in Phase 6)
 - Abandoned carts aren't cleaned up yet; expired stock reservations are released when the next checkout starts

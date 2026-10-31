@@ -69,3 +69,77 @@ export function contentCredits(content: StorefrontContent): string[] {
     ),
   ];
 }
+
+// The homepage editor in the dashboard
+
+/** The places a picture can go on the homepage. */
+export const PICTURE_SLOTS = [
+  "hero",
+  "plate-1",
+  "plate-2",
+  "letter",
+  "footer",
+] as const;
+export type PictureSlot = (typeof PICTURE_SLOTS)[number];
+
+/** What the merchant types for a picture. Alt text is required for screen readers. */
+export const pictureDetailsSchema = z.object({
+  alt: z
+    .string()
+    .trim()
+    .min(1, "Describe the picture for people who can't see it")
+    .max(200),
+  caption: z.string().trim().max(160).default(""),
+  credit: z.string().trim().max(300).default(""),
+});
+
+export type PictureDetailsInput = z.input<typeof pictureDetailsSchema>;
+
+/** The words on the homepage, as typed into the editor's form. */
+export const homepageTextSchema = z
+  .object({
+    summary: z.string().trim().max(160).default(""),
+    actionLabel: z.string().trim().max(30).default(""),
+    facts: z
+      .array(z.string().trim().max(40, "At most 40 characters"))
+      .max(3)
+      .default([]),
+    featuredProductSlug: z.string().trim().default(""),
+    // One paragraph per block of text separated by an empty line.
+    letterText: z.string().trim().max(3000).default(""),
+    letterSignedBy: z.string().trim().max(80).default(""),
+    letterRole: z.string().trim().max(80).default(""),
+  })
+  .superRefine((input, context) => {
+    if (input.letterText && !input.letterSignedBy) {
+      context.addIssue({
+        code: "custom",
+        path: ["letterSignedBy"],
+        message: "Add who the letter is from",
+      });
+    }
+    const paragraphs = splitParagraphs(input.letterText);
+    if (paragraphs.length > 6) {
+      context.addIssue({
+        code: "custom",
+        path: ["letterText"],
+        message: "Keep the letter to six paragraphs or fewer",
+      });
+    }
+    if (paragraphs.some((paragraph) => paragraph.length > 600)) {
+      context.addIssue({
+        code: "custom",
+        path: ["letterText"],
+        message: "Each paragraph can be up to 600 characters",
+      });
+    }
+  });
+
+export type HomepageTextInput = z.input<typeof homepageTextSchema>;
+
+export function splitParagraphs(text: string): string[] {
+  return text
+    .split(/\n\s*\n/)
+    .map((paragraph) => paragraph.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+}
