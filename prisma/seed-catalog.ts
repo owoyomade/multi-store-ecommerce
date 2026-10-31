@@ -72,26 +72,45 @@ export async function seedCatalog(
   const context = await getStoreContextForUser(ownerUserId, storeSlug);
   if (!context) throw new Error(`Seed owner is not a member of ${storeSlug}`);
 
-  if ((await db.product.count({ where: { storeId: context.storeId } })) > 0) {
-    for (const item of catalog.products) {
-      const product = await db.product.findFirst({
-        where: { storeId: context.storeId, slug: item.slug },
-        select: { id: true },
-      });
-      if (product)
-        await syncProductArt(context, product.id, item.title, item.art);
-    }
-    console.log(`  ${storeSlug}: catalog already present, artwork refreshed`);
-    return;
-  }
-
+  // Each collection and product is looked up by slug first, so a seed that
+  // stopped halfway (say, an image upload failed) finishes the job on the
+  // next run instead of skipping the store or creating duplicates.
   const collectionIds = new Map<string, string>();
   for (const collection of catalog.collections) {
-    const created = await createCollection(context, collection);
-    collectionIds.set(collection.slug, created.id);
+    const existing = await db.collection.findFirst({
+      where: { storeId: context.storeId, slug: collection.slug },
+      select: { id: true },
+    });
+    const id = existing?.id ?? (await createCollection(context, collection)).id;
+    collectionIds.set(collection.slug, id);
   }
 
+  const collectionIdsFor = (item: DemoProduct) =>
+    item.collections.map((slug) => {
+      const id = collectionIds.get(slug);
+      if (!id) throw new Error(`Unknown collection ${slug}`);
+      return id;
+    });
+
+  let created = 0;
   for (const item of catalog.products) {
+    const existing = await db.product.findFirst({
+      where: { storeId: context.storeId, slug: item.slug },
+      select: { id: true, _count: { select: { collections: true } } },
+    });
+    if (existing) {
+      await syncProductArt(context, existing.id, item.title, item.art);
+      // A product left over from an interrupted seed never got its
+      // collections; ones a merchant has already arranged are left alone.
+      if (existing._count.collections === 0)
+        await setProductCollections(
+          context,
+          existing.id,
+          collectionIdsFor(item),
+        );
+      continue;
+    }
+
     const [option1, option2] = item.options ?? [];
     const product = await createProduct(context, {
       title: item.title,
@@ -132,18 +151,11 @@ export async function seedCatalog(
     }
 
     await syncProductArt(context, product.id, item.title, item.art);
-    await setProductCollections(
-      context,
-      product.id,
-      item.collections.map((slug) => {
-        const id = collectionIds.get(slug);
-        if (!id) throw new Error(`Unknown collection ${slug}`);
-        return id;
-      }),
-    );
+    await setProductCollections(context, product.id, collectionIdsFor(item));
+    created += 1;
   }
   console.log(
-    `  ${storeSlug}: ${catalog.products.length} products, ${catalog.collections.length} collections`,
+    `  ${storeSlug}: ${created} products added, ${catalog.products.length - created} already present (artwork refreshed)`,
   );
 }
 

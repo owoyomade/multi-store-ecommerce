@@ -11,16 +11,20 @@ export default function CheckEmailPage() {
         We&apos;ve sent you a link to verify your email address. Open it to
         finish signing up. The link expires in 1 hour.
       </p>
-      <p className="mt-4 text-sm text-stone-600">
-        Running locally? Emails arrive in Mailpit at{" "}
-        <a
-          href="http://localhost:8030"
-          className="font-medium text-stone-900 underline"
-        >
-          localhost:8030
-        </a>
-        .
-      </p>
+      {/* Mailpit only exists on a developer's machine; shoppers on the live
+          site would just see a broken link. */}
+      {process.env.NODE_ENV === "development" && (
+        <p className="mt-4 text-sm text-stone-600">
+          Running locally? Emails arrive in Mailpit at{" "}
+          <a
+            href="http://localhost:8030"
+            className="font-medium text-stone-900 underline"
+          >
+            localhost:8030
+          </a>
+          .
+        </p>
+      )}
       <Link
         href="/sign-in"
         className="mt-6 inline-block text-sm font-medium text-stone-900 underline"

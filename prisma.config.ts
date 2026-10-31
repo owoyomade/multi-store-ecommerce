@@ -11,6 +11,10 @@ export default defineConfig({
     // Migrations need a direct connection. Neon's pooled address (used by the
     // running app as DATABASE_URL) can't hold the locks migrations take, so
     // hosted setups also set DIRECT_URL. Locally the two are the same.
-    url: process.env["DIRECT_URL"] || process.env["DATABASE_URL"],
+    // DATABASE_URL_UNPOOLED is the name Vercel's Neon integration uses.
+    url:
+      process.env["DIRECT_URL"] ||
+      process.env["DATABASE_URL_UNPOOLED"] ||
+      process.env["DATABASE_URL"],
   },
 });
