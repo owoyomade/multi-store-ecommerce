@@ -2,7 +2,7 @@
 
 A multi-tenant e-commerce platform where merchants create and run several independent online stores from one dashboard. Each store's data is isolated from every other store.
 
-> **Status: Phase 4 (merchant operations) complete.** Accounts, stores, roles, tenant isolation, catalog, branded storefronts, carts, Stripe test-mode checkout, orders, customer accounts, order fulfilment and refunds, discount codes, inventory, staff invitations, sales reports and an activity log work. Production hardening and deployment follow in Phases 5–6 — see [docs/phase-0-plan.md](docs/phase-0-plan.md).
+> **Status: Phase 5 (hardening) complete.** Everything a merchant needs to run several stores works: catalog, branded storefronts, Stripe test-mode checkout, orders, fulfilment and refunds, discounts, inventory, staff and reports. Phase 5 added two-step sign-in, rate limits, security headers, a cross-store isolation test suite, browser tests of the full journey, accessibility checks, a threat model and a tested backup. Deployment follows in Phase 6 — see [docs/phase-0-plan.md](docs/phase-0-plan.md).
 
 ## What works today
 
@@ -65,11 +65,16 @@ A multi-tenant e-commerce platform where merchants create and run several indepe
 - Tenant isolation: staff only ever see stores they belong to; another store's products, variants, collections, images and carts can't be reached by changing IDs (integration tests check each one)
 - Audit log entries for store, product, stock, order, discount and staff changes
 - Refunds reserve the amount in the database before calling Stripe, so two refunds at once can't exceed what was paid
+- Two-step sign-in with an authenticator app and backup codes (Dashboard → Security); required for platform admins
+- Rate limits, stored in Postgres so they survive restarts: sign-in/sign-up/reset, checkout, discount-code attempts, staff invites and CSV exports
+- Security headers on every response: a per-request nonce Content-Security-Policy, no framing, `nosniff`, a strict referrer policy, and HSTS in production
+- Server errors are reported as one JSON log line each (tokens and query strings removed), and can also be sent to an error tracker by setting `ERROR_REPORT_URL`
 - Health endpoint at `/api/health`
+- See [docs/threat-model.md](docs/threat-model.md) for what could go wrong and what stops it, and [docs/backup-restore.md](docs/backup-restore.md) for a tested backup and restore
 
 ## Tech stack
 
-Next.js 16 (App Router) · TypeScript (strict) · PostgreSQL 17 · Prisma 7 · Better Auth · Zod · Tailwind CSS 4 · sharp (image processing) · Vitest · Docker Compose (Postgres + Mailpit)
+Next.js 16 (App Router) · TypeScript (strict) · PostgreSQL 17 · Prisma 7 · Better Auth · Zod · Tailwind CSS 4 · sharp (image processing) · Vitest · Playwright + axe · Docker Compose (Postgres + Mailpit)
 
 ## Running it locally
 
@@ -157,6 +162,8 @@ Without Stripe keys everything works except the final "Continue to payment" step
 | `npm run typecheck`               | Generate route types and run the TypeScript compiler              |
 | `npm run format` / `format:check` | Prettier                                                          |
 | `npm test`                        | Unit + integration tests (uses the separate `shop_test` database) |
+| `npm run test:e2e`                | Browser tests: the full merchant journey and accessibility checks |
+| `npm run db:backup-check`         | Back up the dev database, restore it into a fresh one and compare |
 | `npm run db:migrate`              | Create/apply database migrations                                  |
 | `npm run db:seed`                 | Load demo data (safe to run more than once)                       |
 
@@ -184,14 +191,17 @@ src/
   components/              shared UI components
 prisma/                    schema, migrations, seed script
 tests/                     unit and integration tests
-docs/                      design plan and manual test checklist
+e2e/                       Playwright browser tests (journey + accessibility)
+scripts/                   backup and restore rehearsal
+docs/                      plan, threat model, backup guide, performance budget, manual checklist
+.github/workflows/         CI: lint, typecheck, format, tests, build, browser tests
 ```
 
 ## How tenant isolation works
 
 Every store-owned row has a `storeId`. Pages and server actions never query store data directly; they call a service function that takes a `StoreContext` (store ID, user ID, role). That context is built on the server from the signed-in user's membership row — a store ID sent by the browser is never trusted. Non-members get a 404, so they can't even confirm a store exists. Integration tests in `tests/integration/store-tenancy.test.ts` check this.
 
-## Known limitations (after Phase 4)
+## Known limitations (after Phase 5)
 
 - One shipment per order (no split shipments), and refunds are by amount rather than per item
 - Discount start and end times use the server's time zone, and codes apply to the whole order (not to specific products or collections)
@@ -204,7 +214,6 @@ Every store-owned row has a `storeId`. Pages and server actions never query stor
 - Storefront pictures can't be video yet
 - Uploads are stored on the local disk (S3-compatible storage arrives in Phase 6)
 - Abandoned carts aren't cleaned up yet; expired stock reservations are released when the next checkout starts
-- Rate-limit counters are kept in memory, so they reset when the server restarts
 - Not deployed anywhere yet (Phase 6)
 
 ## Troubleshooting
@@ -215,4 +224,13 @@ Every store-owned row has a `storeId`. Pages and server actions never query stor
 
 ## Testing
 
-See [docs/manual-test-checklist.md](docs/manual-test-checklist.md) to verify everything by hand.
+- `npm test`: unit and integration tests against a real Postgres test database. `tests/integration/cross-tenant.test.ts` checks that one store can't reach another's products, orders, customers, uploads, discounts, stock, reports or staff.
+- `npm run test:e2e`: Playwright builds the app, starts it on port 3211 against the test database, and runs:
+  - the whole journey: sign up → verify email (via Mailpit) → create a store → add a product → a shopper buys it → the merchant ships it → stock goes down
+  - axe accessibility checks on the storefront, cart, checkout and dashboard pages
+
+  Payments use a built-in stand-in for Stripe that only switches on when `E2E_FAKE_PAYMENTS=1` and the app runs on localhost. Docker (Postgres and Mailpit) must be running.
+
+- CI (`.github/workflows/ci.yml`) runs all of the above on every push once the repository is on GitHub.
+- [docs/performance-budget.md](docs/performance-budget.md) has Lighthouse scores and the budget pages must stay within.
+- [docs/manual-test-checklist.md](docs/manual-test-checklist.md) lists the checks to do by hand.

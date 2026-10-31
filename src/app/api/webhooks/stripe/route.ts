@@ -1,5 +1,6 @@
 import { getPaymentProvider } from "@/server/payments";
 import { WebhookSignatureError } from "@/server/payments/provider";
+import { reportError } from "@/server/observability";
 import { processPaymentWebhook } from "@/server/services/checkout";
 
 /**
@@ -31,9 +32,8 @@ export async function POST(request: Request) {
     const outcome = await processPaymentWebhook(event, provider.name);
     return Response.json({ received: true, outcome });
   } catch (error) {
-    console.error("webhook.processing_failed", {
+    await reportError("webhook.processing_failed", error, {
       eventId: event.eventId,
-      error: (error as Error).message,
     });
     return new Response("Processing failed", { status: 500 });
   }

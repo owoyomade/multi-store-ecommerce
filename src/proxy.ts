@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { buildContentSecurityPolicy } from "@/lib/content-security-policy";
 
 // Lets each store be reached on its own subdomain, e.g.
 // northbrew.localhost:3210/products → /s/northbrew/products.
@@ -9,8 +10,9 @@ import { NextResponse, type NextRequest } from "next/server";
 const SUBDOMAIN_HEADER = "x-storefront-subdomain";
 const appHost = new URL(process.env.APP_URL ?? "http://localhost:3210").host;
 const NOT_STORES = new Set(["www", "app", "admin", "api"]);
-// Paths shared by every host: auth, images, health checks and Next's own assets.
-const SHARED_PATH = /^\/(api|media|_next)(\/|$)/;
+// Paths shared by every host: auth, images, health checks, robots.txt and
+// Next's own assets.
+const SHARED_PATH = /^\/(api|media|_next|robots\.txt)(\/|$)/;
 
 function storeSlugFromHost(host: string | null): string | null {
   if (!host?.endsWith(`.${appHost}`)) return null;
@@ -25,17 +27,32 @@ export function proxy(request: NextRequest) {
   // Never trust this header from the outside world; only the proxy sets it.
   requestHeaders.delete(SUBDOMAIN_HEADER);
 
+  // A fresh random nonce per request. Next reads the policy from the request
+  // headers and stamps the nonce onto the scripts it renders.
+  const contentSecurityPolicy = buildContentSecurityPolicy({
+    nonce: Buffer.from(crypto.randomUUID()).toString("base64"),
+    isDev: process.env.NODE_ENV === "development",
+    upgradeInsecureRequests:
+      process.env.APP_URL?.startsWith("https://") ?? false,
+  });
+  requestHeaders.set("Content-Security-Policy", contentSecurityPolicy);
+
   const storeSlug = storeSlugFromHost(request.headers.get("host"));
   const { pathname } = request.nextUrl;
 
+  let response: NextResponse;
   if (!storeSlug || SHARED_PATH.test(pathname)) {
-    return NextResponse.next({ request: { headers: requestHeaders } });
+    response = NextResponse.next({ request: { headers: requestHeaders } });
+  } else {
+    requestHeaders.set(SUBDOMAIN_HEADER, storeSlug);
+    const url = request.nextUrl.clone();
+    url.pathname = `/s/${storeSlug}${pathname === "/" ? "" : pathname}`;
+    response = NextResponse.rewrite(url, {
+      request: { headers: requestHeaders },
+    });
   }
-
-  requestHeaders.set(SUBDOMAIN_HEADER, storeSlug);
-  const url = request.nextUrl.clone();
-  url.pathname = `/s/${storeSlug}${pathname === "/" ? "" : pathname}`;
-  return NextResponse.rewrite(url, { request: { headers: requestHeaders } });
+  response.headers.set("Content-Security-Policy", contentSecurityPolicy);
+  return response;
 }
 
 export const config = {

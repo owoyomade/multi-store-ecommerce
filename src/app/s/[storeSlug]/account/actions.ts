@@ -11,7 +11,8 @@ export async function deleteAddressAction(
 ) {
   const [store, user] = await Promise.all([
     loadStorefront(storeSlug),
-    requireUser(),
+    // Shopping as a customer isn't an admin action.
+    requireUser({ allowMissingAdminTwoFactor: true }),
   ]);
   await deleteAddressForShopper(store.id, user.id, addressId);
   revalidatePath(`/s/${storeSlug}/account`);

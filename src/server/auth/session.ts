@@ -12,19 +12,41 @@ export type CurrentUser = {
   name: string;
   email: string;
   platformRole: string;
+  twoFactorEnabled: boolean;
 };
 
 export async function getCurrentUser(): Promise<CurrentUser | null> {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return null;
-  const { id, name, email, platformRole } = session.user;
-  return { id, name, email, platformRole };
+  const { id, name, email, platformRole, twoFactorEnabled } = session.user;
+  return {
+    id,
+    name,
+    email,
+    platformRole,
+    twoFactorEnabled: twoFactorEnabled === true,
+  };
 }
 
-/** For pages that need a signed-in user. Sends everyone else to sign in. */
-export async function requireUser(): Promise<CurrentUser> {
+/**
+ * For pages that need a signed-in user. Sends everyone else to sign in.
+ *
+ * Platform admins can reach every store, so a stolen admin password would be
+ * far more damaging than anyone else's. Until they turn on an authenticator
+ * app they're sent to the security page instead of the dashboard.
+ */
+export async function requireUser(
+  options: { allowMissingAdminTwoFactor?: boolean } = {},
+): Promise<CurrentUser> {
   const user = await getCurrentUser();
   if (!user) redirect("/sign-in");
+  if (
+    user.platformRole === "SUPER_ADMIN" &&
+    !user.twoFactorEnabled &&
+    !options.allowMissingAdminTwoFactor
+  ) {
+    redirect("/dashboard/security?required=1");
+  }
   return user;
 }
 

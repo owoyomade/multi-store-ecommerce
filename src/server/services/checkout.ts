@@ -4,6 +4,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { formatMoney } from "@/lib/money";
 import { checkoutSchema, type CheckoutInput } from "@/lib/validation/checkout";
 import { db } from "../db";
+import { reportError } from "../observability";
 import { sendEmail } from "../email/mailer";
 import { orderConfirmationMessage } from "../email/templates";
 import { RuleViolationError } from "../errors";
@@ -514,10 +515,7 @@ export async function startCheckout(
     await db.$transaction((tx) =>
       cancelPendingOrder(tx, order.id, "Payment provider unavailable"),
     );
-    console.error("checkout.provider_error", {
-      orderId: order.id,
-      error: (error as Error).message,
-    });
+    await reportError("checkout.provider_error", error, { orderId: order.id });
     throw new RuleViolationError(
       "Payments are temporarily unavailable. Your card was not charged; please try again.",
     );
@@ -721,7 +719,13 @@ export async function processPaymentWebhook(
               },
             },
           });
-          console.error("webhook.amount_mismatch", { paymentId: payment.id });
+          // Not awaited: this runs inside a database transaction, which
+          // shouldn't wait on a network call to the error tracker.
+          void reportError(
+            "webhook.amount_mismatch",
+            new Error("Charged amount differs from order total"),
+            { paymentId: payment.id },
+          );
           return "processed";
         }
 
@@ -807,9 +811,6 @@ async function sendOrderConfirmation(orderId: string) {
       }),
     );
   } catch (error) {
-    console.error("email.order_confirmation_failed", {
-      orderId,
-      error: (error as Error).message,
-    });
+    await reportError("email.order_confirmation_failed", error, { orderId });
   }
 }

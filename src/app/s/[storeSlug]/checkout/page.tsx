@@ -5,6 +5,12 @@ import { OrderSummary } from "@/components/order-summary";
 import { firstParam } from "@/lib/search-params";
 import { getCurrentUser } from "@/server/auth/session";
 import { getPaymentProvider } from "@/server/payments";
+import {
+  clientIp,
+  consumeRateLimit,
+  RATE_LIMITS,
+  RateLimitedError,
+} from "@/server/rate-limit";
 import { getCheckoutPreview } from "@/server/services/checkout";
 import { listAddressesForShopper } from "@/server/services/orders";
 import { storefrontBasePath } from "@/server/storefront-path";
@@ -17,6 +23,23 @@ export const metadata: Metadata = {
   robots: { index: false },
 };
 
+/**
+ * Limits how many codes one visitor can try per store, so codes can't be
+ * guessed by trying thousands of them. Returns the message to show if blocked.
+ */
+async function discountAttemptBlocked(storeId: string): Promise<string | null> {
+  try {
+    await consumeRateLimit(
+      `discount:${storeId}:${await clientIp()}`,
+      RATE_LIMITS.discountCode,
+    );
+    return null;
+  } catch (error) {
+    if (error instanceof RateLimitedError) return error.message;
+    throw error;
+  }
+}
+
 export default async function CheckoutPage({
   params,
   searchParams,
@@ -26,14 +49,20 @@ export default async function CheckoutPage({
   // The code arrives from the "Apply" form below as ?discount=CODE, so the
   // totals can be shown with it before the shopper pays.
   const discountCode = firstParam((await searchParams).discount) ?? "";
-  const [preview, base, viewer] = await Promise.all([
+  const rateLimitMessage = discountCode
+    ? await discountAttemptBlocked(store.id)
+    : null;
+  const [checkedPreview, base, viewer] = await Promise.all([
     getCheckoutPreview(store.id, await readCartToken(store.id), {
-      discountCode,
+      discountCode: rateLimitMessage ? "" : discountCode,
       currency: store.currency,
     }),
     storefrontBasePath(storeSlug),
     getCurrentUser(),
   ]);
+  const preview = rateLimitMessage
+    ? { ...checkedPreview, discountError: rateLimitMessage }
+    : checkedPreview;
   const savedAddresses = viewer
     ? await listAddressesForShopper(store.id, viewer.id)
     : [];
@@ -163,7 +192,7 @@ export default async function CheckoutPage({
             </p>
           )}
         </form>
-        <p className="mt-4 text-xs opacity-60">
+        <p className="mt-4 text-xs opacity-80">
           Tax and shipping use simple demo rates and aren&apos;t real tax
           advice.
         </p>

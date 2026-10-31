@@ -1,0 +1,86 @@
+# Runs every check on each push and pull request. A red result here means
+# the change isn't ready to merge.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      db:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: shop
+          POSTGRES_PASSWORD: shop_ci_password
+          POSTGRES_DB: shop_test
+        ports: ["5440:5432"]
+        options: >-
+          --health-cmd "pg_isready -U shop -d shop_test"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      mail:
+        image: axllent/mailpit:v1.27
+        ports: ["1030:1025", "8030:8025"]
+
+    # Throwaway values for the CI machine only. No real secrets are needed:
+    # payments use the browser-test stand-in, never Stripe.
+    env:
+      DATABASE_URL: postgresql://shop:shop_ci_password@localhost:5440/shop_test
+      TEST_DATABASE_URL: postgresql://shop:shop_ci_password@localhost:5440/shop_test
+      APP_URL: http://localhost:3210
+      BETTER_AUTH_SECRET: ci-only-secret-not-used-anywhere-else-0123456789
+      SMTP_HOST: localhost
+      SMTP_PORT: "1030"
+      EMAIL_FROM: "CI <ci@example.test>"
+      SEED_DEMO_PASSWORD: ci-demo-password
+      STORAGE_DIR: storage
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Formatting
+        run: npm run format:check
+
+      - name: Unit and integration tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+      - name: Install browser for end-to-end tests
+        run: npx playwright install --with-deps chromium
+
+      - name: End-to-end and accessibility tests
+        run: npx playwright test
+        env:
+          E2E_SKIP_BUILD: "1"
+
+      - name: Keep the test report if something failed
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

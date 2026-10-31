@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { OrderStatus, Prisma } from "@/generated/prisma/client";
 import { db } from "../db";
+import { reportError } from "../observability";
 import { sendEmail } from "../email/mailer";
 import { orderShippedMessage } from "../email/templates";
 import { NotFoundError, RuleViolationError } from "../errors";
@@ -160,10 +161,7 @@ export async function shipOrder(
       }),
     );
   } catch (error) {
-    console.error("email.order_shipped_failed", {
-      orderId,
-      error: (error as Error).message,
-    });
+    await reportError("email.order_shipped_failed", error, { orderId });
   }
 }
 
@@ -295,10 +293,7 @@ export async function refundOrder(
         },
       }),
     ]);
-    console.error("refund.provider_error", {
-      orderId,
-      error: (error as Error).message,
-    });
+    await reportError("refund.provider_error", error, { orderId });
     throw new RuleViolationError(
       "The payment provider couldn't process the refund. Nothing was refunded; try again.",
     );

@@ -1,4 +1,5 @@
 import "server-only";
+import { E2ePaymentProvider, isLocalUrl } from "./e2e-provider";
 import type { PaymentProvider } from "./provider";
 import { StripePaymentProvider } from "./stripe-provider";
 
@@ -14,6 +15,19 @@ let cachedProvider: PaymentProvider | null | undefined;
  */
 export function getPaymentProvider(): PaymentProvider | null {
   if (cachedProvider !== undefined) return cachedProvider;
+
+  if (process.env.E2E_FAKE_PAYMENTS === "1") {
+    const appUrl = process.env.APP_URL ?? "";
+    // Belt and braces: the fake provider marks orders paid without money
+    // moving, so it must never run anywhere but a developer's machine or CI.
+    if (!isLocalUrl(appUrl)) {
+      throw new Error(
+        "E2E_FAKE_PAYMENTS is only allowed when APP_URL is localhost.",
+      );
+    }
+    cachedProvider = new E2ePaymentProvider(appUrl);
+    return cachedProvider;
+  }
 
   const secretKey = process.env.STRIPE_SECRET_KEY?.trim();
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim();

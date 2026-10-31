@@ -20,7 +20,7 @@ export function SignInForm() {
     setPending(true);
     setError(null);
 
-    const { error: signInError } = await authClient.signIn.email({
+    const { data, error: signInError } = await authClient.signIn.email({
       email: String(form.get("email")),
       password: String(form.get("password")),
     });
@@ -28,6 +28,12 @@ export function SignInForm() {
     if (signInError) {
       setPending(false);
       setError(signInErrorMessage(signInError.code, signInError.status));
+      return;
+    }
+    // The password was right but the account also needs an authenticator
+    // code. No session exists yet; the next page finishes signing in.
+    if (data && "twoFactorRedirect" in data && data.twoFactorRedirect) {
+      router.push(`/two-factor?next=${encodeURIComponent(nextPath)}`);
       return;
     }
     // refresh() makes server components re-read the new session cookie.

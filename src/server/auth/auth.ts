@@ -2,6 +2,7 @@ import "server-only";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { nextCookies } from "better-auth/next-js";
+import { twoFactor } from "better-auth/plugins";
 import { db } from "../db";
 import { env } from "../env";
 import { sendEmail } from "../email/mailer";
@@ -42,14 +43,21 @@ export const auth = betterAuth({
     },
   },
 
-  // Limits repeated sign-in / sign-up / reset attempts per IP address.
-  // In-memory storage is fine for one server; Phase 5 moves it to the database.
+  // Limits repeated sign-in / sign-up / reset attempts per IP address. The
+  // counters live in Postgres (the rate_limits table) so they survive restarts
+  // and are shared between servers.
   rateLimit: {
     enabled: true,
     window: 60,
     max: 20,
+    storage: "database",
   },
 
-  // Must be the last plugin: it lets server actions set the session cookie.
-  plugins: [nextCookies()],
+  plugins: [
+    // Optional sign-in codes from an authenticator app, with one-time backup
+    // codes. Repeated wrong codes lock the account for a while.
+    twoFactor({ issuer: "Storefront Studio" }),
+    // Must be the last plugin: it lets server actions set the session cookie.
+    nextCookies(),
+  ],
 });

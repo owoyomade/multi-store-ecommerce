@@ -1,4 +1,9 @@
 import { getCurrentUser } from "@/server/auth/session";
+import {
+  consumeRateLimit,
+  RATE_LIMITS,
+  RateLimitedError,
+} from "@/server/rate-limit";
 import { roleHasPermission } from "@/server/permissions/roles";
 import { exportOrdersCsv } from "@/server/services/reports";
 import { getStoreContextForUser } from "@/server/tenancy/store-context";
@@ -28,6 +33,17 @@ export async function GET(
   if (!context) return new Response("Not found", { status: 404 });
   if (!roleHasPermission(context.role, "reports:view"))
     return new Response("Forbidden", { status: 403 });
+
+  try {
+    await consumeRateLimit(
+      `export:${context.userId}`,
+      RATE_LIMITS.ordersExport,
+    );
+  } catch (error) {
+    if (error instanceof RateLimitedError)
+      return new Response(error.message, { status: 429 });
+    throw error;
+  }
 
   const search = new URL(request.url).searchParams;
   const today = new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`);

@@ -90,6 +90,16 @@ Sign in as `maya@northbrew.example.test` unless a step says otherwise. Stripe te
 - [ ] **CSV export.** On Orders, download the CSV and open it in a spreadsheet: one row per order. A customer named `=1+1` shows as text, not 2.
 - [ ] **Activity.** Activity lists what you just did (shipped, refunded, invited, adjusted stock) with names and times.
 
+## Phase 5 — Hardening
+
+- [ ] **Security headers.** In the browser's developer tools (Network → the page → Headers), the response has `content-security-policy` with a `nonce-…`, `x-frame-options: DENY`, `x-content-type-options: nosniff` and `referrer-policy`. The nonce changes on every reload. The Console shows no "Refused to execute" errors on the storefronts, checkout or dashboard.
+- [ ] **Two-step sign-in.** Dashboard → Security → enter your password → scan the QR code with an authenticator app → enter the code. Sign out and in again: after the password you're asked for a code. A wrong code is refused, and a backup code works once. Turn it off again with your password.
+- [ ] **Admin must use it.** Sign in as `admin@example.test` without two-step sign-in: the dashboard sends you to Security with a notice.
+- [ ] **Rate limits.** At checkout, apply 16 wrong discount codes in a row: the 16th says "Too many discount codes tried." Sign in with a wrong password repeatedly: you're told to wait.
+- [ ] **robots.txt.** http://localhost:3210/robots.txt allows storefronts and disallows `/dashboard`, `/api` and checkout pages.
+- [ ] **Backup.** Run `DOCKER=/Applications/Docker.app/Contents/Resources/bin/docker npm run db:backup-check`: every table matches and it ends with "OK".
+- [ ] **Browser tests.** `npm run test:e2e` passes (Docker running).
+
 ### Automated checks
 
 ```bash
@@ -108,4 +118,8 @@ npm test
 npm run build
 ```
 
-All four should finish without errors.
+```bash
+npm run test:e2e
+```
+
+All five should finish without errors.

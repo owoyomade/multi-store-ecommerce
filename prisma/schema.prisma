@@ -23,15 +23,17 @@ enum PlatformRole {
 }
 
 model User {
-  id            String       @id
-  name          String
-  email         String       @unique
-  emailVerified Boolean      @default(false)
-  image         String?
+  id               String       @id
+  name             String
+  email            String       @unique
+  emailVerified    Boolean      @default(false)
+  image            String?
   // Only changeable from the database or seed script, never through sign-up.
-  platformRole  PlatformRole @default(USER)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  platformRole     PlatformRole @default(USER)
+  // Set by Better Auth's two-factor plugin once an authenticator app is confirmed.
+  twoFactorEnabled Boolean?     @default(false)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
 
   sessions         Session[]
   accounts         Account[]
@@ -39,8 +41,25 @@ model User {
   invitesSent      StoreInvite[]     @relation("InvitedBy")
   auditLogs        AuditLog[]
   customers        Customer[]
+  twoFactors       TwoFactor[]
 
   @@map("users")
+}
+
+// Authenticator-app secret and hashed backup codes (managed by Better Auth).
+model TwoFactor {
+  id                      String    @id
+  userId                  String
+  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  secret                  String
+  backupCodes             String
+  verified                Boolean?  @default(true)
+  failedVerificationCount Int?      @default(0)
+  lockedUntil             DateTime?
+
+  @@index([userId])
+  @@index([secret])
+  @@map("two_factors")
 }
 
 model Session {
@@ -90,6 +109,29 @@ model Verification {
 
   @@index([identifier])
   @@map("verifications")
+}
+
+// Rate limiting. Counters live in Postgres rather than memory so they survive
+// restarts and are shared when the app runs on more than one server.
+
+// Better Auth's own counters for sign-in, sign-up and password reset.
+model RateLimit {
+  id          String @id
+  key         String @unique
+  count       Int
+  lastRequest BigInt
+
+  @@map("rate_limits")
+}
+
+// Our counters for checkout, discount codes, invites and exports: at most N
+// requests per key in a fixed time window.
+model RateLimitBucket {
+  key             String   @id
+  count           Int
+  windowStartedAt DateTime
+
+  @@map("rate_limit_buckets")
 }
 
 // Stores (tenants)

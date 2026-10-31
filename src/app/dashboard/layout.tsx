@@ -5,7 +5,9 @@ import { requireUser } from "@/server/auth/session";
 export default async function DashboardLayout({
   children,
 }: LayoutProps<"/dashboard">) {
-  const user = await requireUser();
+  // The admin two-step check happens in each page instead, so the security
+  // page (which lives under this layout) stays reachable.
+  const user = await requireUser({ allowMissingAdminTwoFactor: true });
 
   return (
     <div className="flex flex-1 flex-col">
@@ -17,6 +19,12 @@ export default async function DashboardLayout({
           <span className="hidden text-sm text-stone-600 sm:inline">
             {user.name}
           </span>
+          <Link
+            href="/dashboard/security"
+            className="text-sm text-stone-600 underline hover:text-stone-900"
+          >
+            Security
+          </Link>
           <SignOutButton />
         </div>
       </header>

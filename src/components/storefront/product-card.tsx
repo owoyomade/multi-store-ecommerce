@@ -52,9 +52,9 @@ export function ProductCard({ href, currency, product }: ProductCardProps) {
           </span>
         )}
       </div>
-      <h3 className="mt-3 font-medium group-hover:underline">
+      <h2 className="mt-3 font-medium group-hover:underline">
         {product.title}
-      </h3>
+      </h2>
       <p className="text-sm">
         <span>
           {product.maxPriceCents > product.minPriceCents && "From "}

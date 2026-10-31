@@ -17,6 +17,7 @@ import {
 } from "../errors";
 import { ROLE_LABELS } from "../permissions/roles";
 import { requirePermission, type StoreContext } from "../tenancy/store-context";
+import { consumeRateLimit, RATE_LIMITS } from "../rate-limit";
 import { recordAudit } from "./audit";
 
 const INVITE_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
@@ -76,6 +77,9 @@ export async function inviteStaff(
 ) {
   requirePermission(context, "staff:manage");
   const { email, role } = staffInviteSchema.parse(input);
+  // Invites send email from our domain; a cap per store stops anyone using
+  // the form to spam addresses.
+  await consumeRateLimit(`invite:${context.storeId}`, RATE_LIMITS.staffInvite);
 
   const alreadyMember = await db.storeMembership.findFirst({
     where: { storeId: context.storeId, user: { email } },

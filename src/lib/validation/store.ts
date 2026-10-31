@@ -27,6 +27,9 @@ const RESERVED_SLUGS = new Set([
   "s",
   "mail",
   "static",
+  // Dashboard pages that live beside /dashboard/<store>.
+  "new",
+  "security",
 ]);
 
 const hexColor = z

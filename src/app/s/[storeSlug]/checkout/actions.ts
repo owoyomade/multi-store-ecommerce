@@ -5,6 +5,7 @@ import type { FormState } from "@/lib/form-state";
 import { toErrorFormState } from "@/server/action-errors";
 import { getCurrentUser } from "@/server/auth/session";
 import { getPaymentProvider } from "@/server/payments";
+import { clientIp, consumeRateLimit, RATE_LIMITS } from "@/server/rate-limit";
 import { startCheckout } from "@/server/services/checkout";
 import { readCartToken } from "../cart-cookie";
 import { loadStorefront } from "../load-store";
@@ -30,6 +31,12 @@ export async function startCheckoutAction(
 
   let checkoutUrl: string;
   try {
+    // Each attempt reserves stock and creates a Stripe session, so a script
+    // hammering this could tie up a store's inventory.
+    await consumeRateLimit(
+      `checkout:${await clientIp()}`,
+      RATE_LIMITS.checkout,
+    );
     const viewer = await getCurrentUser();
     ({ checkoutUrl } = await startCheckout({
       store,

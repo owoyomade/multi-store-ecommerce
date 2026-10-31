@@ -67,3 +67,10 @@ AGENTS.md
 # design-tool working files (screenshots, reports)
 /.taste-skill/
 /.impeccable/
+
+# playwright
+/test-results/
+/playwright-report/
+
+# database backups contain customer data
+/backups/

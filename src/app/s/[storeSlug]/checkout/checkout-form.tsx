@@ -238,7 +238,8 @@ function CheckoutField({
     <div className={`flex flex-col gap-1 ${wide ? "sm:col-span-2" : ""}`}>
       <label htmlFor={`checkout-${name}`} className="text-sm">
         {label}
-        {!required && <span className="opacity-60"> (optional)</span>}
+        {/* 75% keeps the hint quieter than the label but readable (WCAG AA). */}
+        {!required && <span className="opacity-75"> (optional)</span>}
       </label>
       <input
         id={`checkout-${name}`}
